@@ -120,7 +120,6 @@ impl Default for AppSettings {
                 "dist".to_string(),
                 "build".to_string(),
                 ".next".to_string(),
-                ".git".to_string(),
             ],
             always_flag_patterns: vec![
                 ".env".to_string(),
