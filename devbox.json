@@ -1,0 +1,13 @@
+{
+  "packages": [
+    "rustup",
+    "pkg-config",
+    "libiconv",
+    "git@latest"
+  ],
+  "shell": {
+    "init_hook": [
+      "rustup default stable > /dev/null 2>&1"
+    ]
+  }
+}

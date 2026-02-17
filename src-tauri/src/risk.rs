@@ -65,7 +65,7 @@ pub fn find_ignored_files(
 
     // Get list of all files on disk (including ignored ones)
     // We use git ls-files to get ignored files
-    let output = Command::new("git")
+    let output = Command::new(crate::git_ops::git_binary())
         .args(["-C", &repo_path.to_string_lossy()])
         .args(["ls-files", "--others", "--ignored", "--exclude-standard", "-z"])
         .output();
@@ -106,6 +106,8 @@ pub fn find_ignored_files(
                 risk_level,
                 matched_rule,
                 category,
+                is_directory: false,
+                child_count: 0,
             });
         }
     }
@@ -118,6 +120,109 @@ pub fn find_ignored_files(
             RiskLevel::Low => 2,
         };
         order(&a.risk_level).cmp(&order(&b.risk_level))
+    });
+
+    results
+}
+
+/// Find all ignored files, collapse nested entries to top-level, classify risk.
+pub fn find_all_ignored_files(
+    repo_path: &Path,
+    flag_patterns: &[String],
+    ignore_patterns: &[String],
+) -> Vec<IgnoredFileInfo> {
+    let output = Command::new(crate::git_ops::git_binary())
+        .args(["-C", &repo_path.to_string_lossy()])
+        .args(["ls-files", "--others", "--ignored", "--exclude-standard", "-z"])
+        .output();
+
+    let files = match output {
+        Ok(out) if out.status.success() => {
+            String::from_utf8_lossy(&out.stdout).to_string()
+        }
+        _ => return Vec::new(),
+    };
+
+    let file_list: Vec<&str> = files.split('\0').filter(|f| !f.is_empty()).collect();
+    if file_list.is_empty() {
+        return Vec::new();
+    }
+
+    // Filter out always-ignore artifacts, classify each file
+    let mut classified: Vec<(String, RiskLevel, String, String)> = Vec::new();
+    for file_path in &file_list {
+        if should_always_ignore(file_path, ignore_patterns) {
+            continue;
+        }
+        let file_name = Path::new(file_path)
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let (risk_level, category, matched_rule) =
+            classify_risk(file_path, &file_name, flag_patterns);
+        classified.push((file_path.to_string(), risk_level, category, matched_rule));
+    }
+
+    // Group by top-level path component
+    let mut groups: std::collections::BTreeMap<String, Vec<(String, RiskLevel, String, String)>> =
+        std::collections::BTreeMap::new();
+    for entry in classified {
+        let top_level = if let Some(idx) = entry.0.find('/') {
+            entry.0[..idx].to_string()
+        } else {
+            entry.0.clone()
+        };
+        groups.entry(top_level).or_default().push(entry);
+    }
+
+    // Build results: collapse groups with multiple files or nested paths into directories
+    let mut results = Vec::new();
+    for (top_level, entries) in &groups {
+        let has_nested = entries.iter().any(|(p, _, _, _)| p.contains('/'));
+        if entries.len() == 1 && !has_nested {
+            // Single root-level file
+            let (path, risk_level, category, matched_rule) = &entries[0];
+            results.push(IgnoredFileInfo {
+                path: path.clone(),
+                risk_level: risk_level.clone(),
+                matched_rule: matched_rule.clone(),
+                category: category.clone(),
+                is_directory: false,
+                child_count: 0,
+            });
+        } else {
+            // Collapse into directory entry with highest risk
+            let mut highest_risk = RiskLevel::Low;
+            let mut best_category = String::new();
+            let mut best_rule = String::new();
+            for (_, risk, cat, rule) in entries {
+                if *risk < highest_risk {
+                    highest_risk = risk.clone();
+                    best_category = cat.clone();
+                    best_rule = rule.clone();
+                }
+            }
+            results.push(IgnoredFileInfo {
+                path: top_level.clone(),
+                risk_level: highest_risk,
+                matched_rule: best_rule,
+                category: best_category,
+                is_directory: true,
+                child_count: entries.len(),
+            });
+        }
+    }
+
+    // Sort: High first, then Medium, then Low, then alphabetical
+    results.sort_by(|a, b| {
+        let order = |r: &RiskLevel| match r {
+            RiskLevel::High => 0,
+            RiskLevel::Medium => 1,
+            RiskLevel::Low => 2,
+        };
+        order(&a.risk_level)
+            .cmp(&order(&b.risk_level))
+            .then(a.path.cmp(&b.path))
     });
 
     results

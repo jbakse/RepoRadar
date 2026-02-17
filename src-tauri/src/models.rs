@@ -1,12 +1,6 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Workspace {
-    pub name: String,
-    pub roots: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RepoSummary {
     pub path: String,
     pub folder_name: String,
@@ -74,9 +68,13 @@ pub struct IgnoredFileInfo {
     pub risk_level: RiskLevel,
     pub matched_rule: String,
     pub category: String,
+    #[serde(default)]
+    pub is_directory: bool,
+    #[serde(default)]
+    pub child_count: usize,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
 pub enum RiskLevel {
     High,
     Medium,
@@ -84,13 +82,31 @@ pub enum RiskLevel {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum FileStatus {
+    Modified,
+    Added,
+    Deleted,
+    Renamed,
+    Copied,
+    Untracked,
+    TypeChanged,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChangedFileEntry {
+    pub path: String,
+    pub file_name: String,
+    pub status: FileStatus,
+    pub staged: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RepoDetail {
     pub summary: RepoSummary,
     pub branches: Vec<BranchInfo>,
     pub ignored_files: Vec<IgnoredFileInfo>,
-    pub staged_files: Vec<String>,
-    pub unstaged_files: Vec<String>,
-    pub untracked_files: Vec<String>,
+    pub changed_files: Vec<ChangedFileEntry>,
+    pub recent_commits: Vec<CommitInfo>,
     pub warnings: Vec<String>,
 }
 
@@ -102,25 +118,47 @@ pub struct ScanProgress {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScanDiscoveryComplete {
+    pub total: usize,
+}
+
+/// Legacy workspace struct, kept only for migration from old settings.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LegacyWorkspace {
+    pub name: String,
+    pub roots: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppSettings {
-    pub workspaces: Vec<Workspace>,
+    /// Flat list of folder paths to scan.
+    #[serde(default)]
+    pub folders: Vec<String>,
+    /// Currently active folder path, or None for "All Folders".
+    #[serde(default)]
+    pub active_folder: Option<String>,
     pub discovery_exclusions: Vec<String>,
     pub always_flag_patterns: Vec<String>,
     pub always_ignore_patterns: Vec<String>,
     pub include_untracked_mtime: bool,
+    /// Legacy fields kept for migration — ignored after migration.
+    #[serde(default, skip_serializing)]
+    pub workspaces: Vec<LegacyWorkspace>,
+    #[serde(default, skip_serializing)]
+    pub last_active_workspace: Option<String>,
 }
 
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
-            workspaces: vec![],
+            folders: vec![],
+            active_folder: None,
             discovery_exclusions: vec![
                 "node_modules".to_string(),
                 ".venv".to_string(),
                 "dist".to_string(),
                 "build".to_string(),
                 ".next".to_string(),
-                ".git".to_string(),
             ],
             always_flag_patterns: vec![
                 ".env".to_string(),
@@ -141,6 +179,8 @@ impl Default for AppSettings {
                 "target/**".to_string(),
             ],
             include_untracked_mtime: false,
+            workspaces: vec![],
+            last_active_workspace: None,
         }
     }
 }

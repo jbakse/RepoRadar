@@ -16,8 +16,12 @@ pub fn discover_repos(roots: &[String], exclusions: &[String]) -> Vec<PathBuf> {
             .into_iter()
             .filter_entry(|entry| {
                 let file_name = entry.file_name().to_string_lossy();
-                // Don't recurse into excluded directories (but still process them at top level)
                 if entry.depth() > 0 && entry.file_type().is_dir() {
+                    // Never recurse into .git directories (handled separately below)
+                    if file_name == ".git" {
+                        return false;
+                    }
+                    // Don't recurse into user-configured excluded directories
                     for exclusion in exclusions {
                         if file_name == *exclusion {
                             return false;
@@ -28,13 +32,11 @@ pub fn discover_repos(roots: &[String], exclusions: &[String]) -> Vec<PathBuf> {
             });
 
         for entry in walker.filter_map(|e| e.ok()) {
-            let path = entry.path();
-            let file_name = entry.file_name().to_string_lossy();
-
-            if file_name == ".git" {
-                // Found a git repo - the parent is the repo root
-                if let Some(parent) = path.parent() {
-                    let repo_path = parent.to_path_buf();
+            if entry.file_type().is_dir() {
+                // Check if this directory contains a .git entry (dir or file)
+                let git_indicator = entry.path().join(".git");
+                if git_indicator.exists() {
+                    let repo_path = entry.path().to_path_buf();
                     if !repos.contains(&repo_path) {
                         repos.push(repo_path);
                     }
@@ -77,6 +79,37 @@ mod tests {
 
         let roots = vec![tmp.to_string_lossy().to_string()];
         let exclusions = vec!["node_modules".to_string()];
+        let repos = discover_repos(&roots, &exclusions);
+
+        assert_eq!(repos.len(), 1);
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_discovers_root_folder_as_repo() {
+        let tmp = std::env::temp_dir().join("reporadar_test_root_repo");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(tmp.join(".git")).unwrap();
+
+        let roots = vec![tmp.to_string_lossy().to_string()];
+        let exclusions = vec!["node_modules".to_string()];
+        let repos = discover_repos(&roots, &exclusions);
+
+        assert_eq!(repos.len(), 1);
+        assert_eq!(repos[0], tmp);
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_git_not_blocked_by_exclusions() {
+        // Regression test: .git must never be user-excludable
+        let tmp = std::env::temp_dir().join("reporadar_test_git_excl");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(tmp.join("project/.git")).unwrap();
+
+        let roots = vec![tmp.to_string_lossy().to_string()];
+        // Even if someone puts .git in exclusions, repos should still be found
+        let exclusions = vec![".git".to_string()];
         let repos = discover_repos(&roots, &exclusions);
 
         assert_eq!(repos.len(), 1);

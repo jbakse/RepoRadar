@@ -1,121 +1,193 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
   RepoSummary,
   RepoDetail,
-  Workspace,
+  AppSettings,
   FilterType,
   SortField,
   SortDirection,
+  ScanProgress,
+  ScanDiscoveryComplete,
 } from "./types";
 import { RepoTable } from "./components/RepoTable";
 import { RepoDetailView } from "./components/RepoDetailView";
 import { WorkspacePicker } from "./components/WorkspacePicker";
 import { FilterBar } from "./components/FilterBar";
+import { SettingsModal } from "./components/SettingsModal";
+import { ScanProgressBar } from "./components/ScanProgressBar";
 import "./App.css";
 
 function App() {
   const [repos, setRepos] = useState<RepoSummary[]>([]);
   const [selectedRepo, setSelectedRepo] = useState<RepoDetail | null>(null);
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(
-    null
-  );
-  const [scanning, setScanning] = useState(false);
+  const [folders, setFolders] = useState<string[]>([]);
+  const [activeFolder, setActiveFolder] = useState<string | null>(null);
+  const [scanState, setScanState] = useState<{
+    phase: "idle" | "discovering" | "analyzing";
+    total: number;
+    completed: number;
+    currentRepo: string | null;
+  }>({ phase: "idle", total: 0, completed: 0, currentRepo: null });
+  const scanning = scanState.phase !== "idle";
   const [filter, setFilter] = useState<FilterType>("all");
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortDir, setSortDir] = useState<SortDirection>("asc");
   const [view, setView] = useState<"table" | "detail">("table");
+  const [initialTab, setInitialTab] = useState<string>("overview");
+  const [showSettings, setShowSettings] = useState(false);
+
+  const unlistenRef = useRef<UnlistenFn[]>([]);
+  const initialLoadDone = useRef(false);
+
+  const cleanupListeners = useCallback(() => {
+    for (const unlisten of unlistenRef.current) {
+      unlisten();
+    }
+    unlistenRef.current = [];
+  }, []);
+
+  // Clean up listeners on unmount
+  useEffect(() => {
+    return () => cleanupListeners();
+  }, [cleanupListeners]);
 
   const scanRoots = useCallback(async (roots: string[]) => {
     if (roots.length === 0) return;
-    setScanning(true);
+
+    // Clean up any existing listeners from a previous scan
+    cleanupListeners();
+
+    setRepos([]);
     setSelectedRepo(null);
     setView("table");
+    setScanState({ phase: "discovering", total: 0, completed: 0, currentRepo: null });
+
+    // Set up event listeners before starting the scan
+    const unlistens = await Promise.all([
+      listen<ScanDiscoveryComplete>("scan:discovery-complete", (event) => {
+        setScanState((prev) => ({
+          ...prev,
+          phase: "analyzing",
+          total: event.payload.total,
+        }));
+      }),
+      listen<ScanProgress>("scan:progress", (event) => {
+        setScanState((prev) => ({
+          ...prev,
+          completed: event.payload.completed,
+          currentRepo: event.payload.current_repo,
+        }));
+      }),
+      listen<RepoSummary>("scan:repo-ready", (event) => {
+        setRepos((prev) => [...prev, event.payload]);
+      }),
+      listen("scan:complete", () => {
+        setScanState({ phase: "idle", total: 0, completed: 0, currentRepo: null });
+        // Defer cleanup so this handler can finish before being unregistered
+        setTimeout(() => {
+          for (const u of unlistenRef.current) u();
+          unlistenRef.current = [];
+        }, 0);
+      }),
+    ]);
+    unlistenRef.current = unlistens;
+
     try {
-      const results = await invoke<RepoSummary[]>("scan_repos", { roots });
-      setRepos(results);
+      await invoke("start_scan", { roots });
     } catch (err) {
       console.error("Scan failed:", err);
-    } finally {
-      setScanning(false);
+      setScanState({ phase: "idle", total: 0, completed: 0, currentRepo: null });
+      cleanupListeners();
     }
-  }, []);
+  }, [cleanupListeners]);
 
-  const handleSelectWorkspace = useCallback(
-    (workspace: Workspace) => {
-      setActiveWorkspace(workspace);
-      scanRoots(workspace.roots);
+  // Helper: get roots to scan based on active folder
+  const getRoots = useCallback(
+    (folder: string | null, allFolders: string[]) => {
+      return folder ? [folder] : allFolders;
     },
-    [scanRoots]
+    []
+  );
+
+  // Load saved settings on mount and restore last active folder
+  useEffect(() => {
+    if (initialLoadDone.current) return;
+    initialLoadDone.current = true;
+    async function loadSettings() {
+      try {
+        const settings = await invoke<AppSettings>("get_settings");
+        setFolders(settings.folders);
+        setActiveFolder(settings.active_folder);
+        const roots = settings.active_folder
+          ? [settings.active_folder]
+          : settings.folders;
+        if (roots.length > 0) {
+          scanRoots(roots);
+        }
+      } catch (err) {
+        console.error("Failed to load settings:", err);
+      }
+    }
+    loadSettings();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSelectFolder = useCallback(
+    (folder: string | null) => {
+      setActiveFolder(folder);
+      invoke("set_active_folder", { path: folder });
+      scanRoots(getRoots(folder, folders));
+    },
+    [scanRoots, getRoots, folders]
   );
 
   const handleAddFolder = useCallback(async () => {
-    const selected = await open({ directory: true, multiple: true });
+    const selected = await open({ directory: true, multiple: false });
     if (selected) {
-      const folders = Array.isArray(selected) ? selected : [selected];
-      if (activeWorkspace) {
-        const newRoots = [...new Set([...activeWorkspace.roots, ...folders])];
-        const updated = { ...activeWorkspace, roots: newRoots };
-        setActiveWorkspace(updated);
-        setWorkspaces((prev) =>
-          prev.map((w) => (w.name === updated.name ? updated : w))
-        );
-        await invoke("add_workspace", {
-          name: updated.name,
-          roots: updated.roots,
-        });
-        scanRoots(newRoots);
-      } else {
-        const name = "Default";
-        const ws: Workspace = { name, roots: folders };
-        setWorkspaces((prev) => [...prev, ws]);
-        setActiveWorkspace(ws);
-        await invoke("add_workspace", { name, roots: folders });
-        scanRoots(folders);
-      }
+      const path = Array.isArray(selected) ? selected[0] : selected;
+      const newFolders = folders.includes(path) ? folders : [...folders, path];
+      setFolders(newFolders);
+      setActiveFolder(path);
+      await invoke("add_folder", { path });
+      await invoke("set_active_folder", { path });
+      scanRoots([path]);
     }
-  }, [activeWorkspace, scanRoots]);
+  }, [folders, scanRoots]);
 
-  const handleCreateWorkspace = useCallback(
-    async (name: string) => {
-      const selected = await open({ directory: true, multiple: true });
-      if (selected) {
-        const folders = Array.isArray(selected) ? selected : [selected];
-        const ws: Workspace = { name, roots: folders };
-        setWorkspaces((prev) => [...prev.filter((w) => w.name !== name), ws]);
-        setActiveWorkspace(ws);
-        await invoke("add_workspace", { name, roots: folders });
-        scanRoots(folders);
+  const handleRemoveFolder = useCallback(
+    async (path: string) => {
+      const newFolders = folders.filter((f) => f !== path);
+      setFolders(newFolders);
+      await invoke("remove_folder", { path });
+      if (activeFolder === path) {
+        // Switch to "All Folders"
+        setActiveFolder(null);
+        await invoke("set_active_folder", { path: null });
+        if (newFolders.length > 0) {
+          scanRoots(newFolders);
+        } else {
+          setRepos([]);
+        }
       }
     },
-    [scanRoots]
-  );
-
-  const handleDeleteWorkspace = useCallback(
-    async (name: string) => {
-      setWorkspaces((prev) => prev.filter((w) => w.name !== name));
-      if (activeWorkspace?.name === name) {
-        setActiveWorkspace(null);
-        setRepos([]);
-      }
-      await invoke("remove_workspace", { name });
-    },
-    [activeWorkspace]
+    [folders, activeFolder, scanRoots]
   );
 
   const handleRefresh = useCallback(() => {
-    if (activeWorkspace) {
-      scanRoots(activeWorkspace.roots);
+    const roots = getRoots(activeFolder, folders);
+    if (roots.length > 0) {
+      scanRoots(roots);
     }
-  }, [activeWorkspace, scanRoots]);
+  }, [activeFolder, folders, getRoots, scanRoots]);
 
-  const handleSelectRepo = useCallback(async (repo: RepoSummary) => {
+  const handleSelectRepo = useCallback(async (repo: RepoSummary, tab: string) => {
     try {
       const detail = await invoke<RepoDetail>("get_repo_detail", {
         repoPath: repo.path,
       });
+      setInitialTab(tab);
       setSelectedRepo(detail);
       setView("detail");
     } catch (err) {
@@ -127,6 +199,19 @@ function App() {
     setView("table");
     setSelectedRepo(null);
   }, []);
+
+  const handleSaveSettings = useCallback(
+    async (settings: AppSettings) => {
+      await invoke("save_settings", { settings });
+      setFolders(settings.folders);
+      // Re-scan with current folder selection
+      const roots = getRoots(activeFolder, settings.folders);
+      if (roots.length > 0) {
+        scanRoots(roots);
+      }
+    },
+    [activeFolder, getRoots, scanRoots]
+  );
 
   const handleSort = useCallback(
     (field: SortField) => {
@@ -211,21 +296,25 @@ function App() {
         <h1 className="app-title">RepoRadar</h1>
         <div className="header-actions">
           <WorkspacePicker
-            workspaces={workspaces}
-            activeWorkspace={activeWorkspace}
-            onSelect={handleSelectWorkspace}
-            onCreate={handleCreateWorkspace}
-            onDelete={handleDeleteWorkspace}
+            folders={folders}
+            activeFolder={activeFolder}
+            onSelect={handleSelectFolder}
+            onAdd={handleAddFolder}
+            onRemove={handleRemoveFolder}
           />
-          <button className="btn btn-primary" onClick={handleAddFolder}>
-            Add Folder
-          </button>
           <button
             className="btn btn-secondary"
             onClick={handleRefresh}
-            disabled={scanning || !activeWorkspace}
+            disabled={scanning || folders.length === 0}
           >
             {scanning ? "Scanning..." : "Refresh"}
+          </button>
+          <button
+            className="btn btn-secondary"
+            onClick={() => setShowSettings(true)}
+            title="Settings"
+          >
+            Settings
           </button>
         </div>
       </header>
@@ -233,43 +322,54 @@ function App() {
       <main className="app-main">
         {view === "table" ? (
           <>
-            <FilterBar
-              filter={filter}
-              onFilterChange={setFilter}
-              repoCount={repos.length}
-              filteredCount={filteredRepos.length}
-            />
+            {scanState.phase !== "idle" && (
+              <ScanProgressBar
+                phase={scanState.phase}
+                total={scanState.total}
+                completed={scanState.completed}
+                currentRepo={scanState.currentRepo}
+              />
+            )}
             {repos.length === 0 && !scanning ? (
               <div className="empty-state">
                 <div className="empty-state-icon">&#128269;</div>
                 <h2>No repositories found</h2>
                 <p>
-                  Add a folder to scan for Git repositories, or create a
-                  workspace to get started.
+                  Add a folder to scan for Git repositories.
                 </p>
                 <button className="btn btn-primary" onClick={handleAddFolder}>
                   Add Folder
                 </button>
               </div>
-            ) : scanning ? (
-              <div className="scanning-state">
-                <div className="spinner"></div>
-                <p>Scanning for repositories...</p>
-              </div>
-            ) : (
-              <RepoTable
-                repos={sortedRepos}
-                sortField={sortField}
-                sortDir={sortDir}
-                onSort={handleSort}
-                onSelect={handleSelectRepo}
-              />
-            )}
+            ) : repos.length > 0 ? (
+              <>
+                <FilterBar
+                  filter={filter}
+                  onFilterChange={setFilter}
+                  repoCount={repos.length}
+                  filteredCount={filteredRepos.length}
+                />
+                <RepoTable
+                  repos={sortedRepos}
+                  sortField={sortField}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                  onSelect={handleSelectRepo}
+                />
+              </>
+            ) : null}
           </>
         ) : selectedRepo ? (
-          <RepoDetailView detail={selectedRepo} onBack={handleBackToTable} />
+          <RepoDetailView detail={selectedRepo} onBack={handleBackToTable} initialTab={initialTab} />
         ) : null}
       </main>
+
+      {showSettings && (
+        <SettingsModal
+          onClose={() => setShowSettings(false)}
+          onSave={handleSaveSettings}
+        />
+      )}
     </div>
   );
 }

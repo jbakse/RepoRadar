@@ -175,13 +175,24 @@
   color: var(--text-muted);
 }
 
+.folder-path {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: "SF Mono", "Fira Code", monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
+}
+
 .workspace-delete {
   padding: 4px 10px;
   border: none;
   background: none;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 14px;
+  font-size: 16px;
+  flex-shrink: 0;
 }
 
 .workspace-delete:hover {
@@ -199,33 +210,13 @@
   font-weight: 500;
 }
 
-.workspace-create-form {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 10px;
-}
-
-.workspace-create-form input {
-  flex: 1;
-  padding: 4px 8px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  font-size: 13px;
-  outline: none;
-}
-
-.workspace-create-form input:focus {
-  border-color: var(--accent);
-}
-
 /* Main Content */
 .app-main {
   flex: 1;
-  overflow: auto;
+  overflow: hidden;
   padding: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Filter Bar */
@@ -236,6 +227,7 @@
   padding: 10px 20px;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
 }
 
 .filter-buttons {
@@ -273,8 +265,9 @@
 
 /* Repo Table */
 .repo-table-wrapper {
+  flex: 1;
   overflow: auto;
-  height: 100%;
+  min-height: 0;
 }
 
 .repo-table {
@@ -353,40 +346,34 @@
   max-width: 300px;
 }
 
-.commit-subject {
+.commit-date {
   font-size: 13px;
   color: var(--text-primary);
+}
+
+.commit-subject {
+  font-size: 12px;
+  color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 250px;
-}
-
-.commit-meta {
-  display: flex;
-  gap: 8px;
-  font-size: 11px;
-  color: var(--text-muted);
   margin-top: 2px;
 }
 
-.commit-hash {
-  font-family: "SF Mono", "Fira Code", monospace;
+.edited-date {
+  font-size: 13px;
+  color: var(--text-primary);
 }
 
 .edited-file {
   font-size: 12px;
   font-family: "SF Mono", "Fira Code", monospace;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 200px;
-}
-
-.edited-date {
-  font-size: 11px;
-  color: var(--text-muted);
   margin-top: 2px;
 }
 
@@ -409,6 +396,7 @@
 .changes-badges {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: 3px;
 }
 
@@ -508,38 +496,61 @@
   max-width: 400px;
 }
 
-/* Scanning State */
-.scanning-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 80px 20px;
+/* Scan Progress */
+.scan-progress {
+  padding: 16px 20px 12px;
+  flex-shrink: 0;
 }
 
-.spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid var(--border);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  margin-bottom: 16px;
+.scan-progress-bar {
+  width: 100%;
+  height: 6px;
+  background: var(--bg-card);
+  border-radius: 3px;
+  overflow: hidden;
 }
 
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
+.scan-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.scan-progress-fill.indeterminate {
+  width: 40%;
+  animation: indeterminate 1.4s ease-in-out infinite;
+}
+
+@keyframes indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(350%);
   }
 }
 
-.scanning-state p {
+.scan-progress-text {
+  margin-top: 8px;
+  font-size: 13px;
   color: var(--text-secondary);
 }
 
 /* Repo Detail View */
 .repo-detail {
   padding: 20px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.detail-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .detail-header {
@@ -614,18 +625,15 @@
   color: var(--text-muted);
 }
 
-/* Overview Grid */
-.overview-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+/* Overview Section */
+.overview-section {
+  display: flex;
+  flex-direction: column;
   gap: 16px;
 }
 
 .overview-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 16px;
+  padding: 0;
 }
 
 .overview-card h3 {
@@ -679,7 +687,6 @@
 }
 
 .current-branch {
-  background: rgba(108, 99, 255, 0.08);
 }
 
 .current-indicator {
@@ -698,64 +705,253 @@
   font-weight: 600;
 }
 
-/* File Lists */
-.file-list {
-  margin-bottom: 20px;
+/* Clickable path link */
+.path-link {
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: none;
+  font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+  word-break: break-all;
 }
 
-.file-list h3 {
-  font-size: 14px;
-  font-weight: 600;
-  margin-bottom: 8px;
+.path-link:hover {
+  text-decoration: underline;
 }
 
-.file-count {
-  font-weight: 400;
-  color: var(--text-muted);
+/* Commit date column - wide enough for full date on hover */
+.commit-date-cell {
+  min-width: 180px;
+  white-space: nowrap;
 }
 
-.file-list ul {
-  list-style: none;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+/* Commit message in table */
+.commit-message {
+  white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 500px;
 }
 
-.file-list li {
-  padding: 6px 12px;
-  font-size: 13px;
-  border-bottom: 1px solid var(--border);
-}
-
-.file-list li:last-child {
-  border-bottom: none;
-}
-
-.file-list-staged h3 {
-  color: var(--green);
-}
-
-.file-list-unstaged h3 {
+/* Changed files status badges */
+.badge-status-modified {
+  background: rgba(251, 191, 36, 0.15);
   color: var(--yellow);
 }
 
-.file-list-untracked h3 {
+.badge-status-added {
+  background: rgba(74, 222, 128, 0.15);
+  color: var(--green);
+}
+
+.badge-status-deleted {
+  background: rgba(248, 113, 113, 0.15);
+  color: var(--red);
+}
+
+.badge-status-renamed {
+  background: rgba(96, 165, 250, 0.15);
+  color: var(--blue);
+}
+
+.badge-status-copied {
+  background: rgba(96, 165, 250, 0.15);
+  color: var(--blue);
+}
+
+.badge-status-untracked {
+  background: rgba(160, 160, 184, 0.1);
   color: var(--text-secondary);
+}
+
+.badge-status-typechanged {
+  background: rgba(251, 146, 60, 0.15);
+  color: var(--orange);
+}
+
+.badge-staged-indicator {
+  margin-left: 4px;
+  background: rgba(74, 222, 128, 0.1);
+  color: var(--green);
+  font-size: 10px;
+}
+
+/* File path cell */
+.file-path-cell {
+  word-break: break-all;
+  max-width: 400px;
+}
+
+/* Ignored files directory indicator */
+.child-count {
+  margin-left: 8px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-style: italic;
+}
+
+.text-muted {
+  color: var(--text-muted);
 }
 
 /* Risk rows */
 .risk-high td {
-  background: rgba(248, 113, 113, 0.05);
 }
 
 .risk-medium td {
-  background: rgba(251, 146, 60, 0.05);
 }
 
 /* Utility */
 .monospace {
   font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: 600px;
+  max-width: 90vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-header h2 {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 22px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.modal-close:hover {
+  color: var(--text-primary);
+}
+
+.modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+  gap: 8px;
+}
+
+.modal-footer-right {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+/* Settings Tabs */
+.settings-tabs {
+  display: flex;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+  gap: 2px;
+}
+
+.settings-tab {
+  padding: 8px 14px;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.settings-tab:hover {
+  color: var(--text-primary);
+}
+
+.settings-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* Settings Sections */
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings-help {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.settings-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.settings-toggle input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.settings-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+  line-height: 1.6;
+  resize: vertical;
+  outline: none;
+}
+
+.settings-textarea:focus {
+  border-color: var(--accent);
 }
 
 /* Scrollbar styling */

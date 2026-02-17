@@ -1,27 +1,30 @@
 import { useState } from "react";
 import { RepoDetail } from "../types";
 import { formatDate } from "../utils";
+import { RelativeDate } from "./RelativeDate";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
 
 interface Props {
   detail: RepoDetail;
   onBack: () => void;
+  initialTab?: string;
 }
 
 type Tab = "overview" | "status" | "branches" | "remotes" | "ignored";
 
-export function RepoDetailView({ detail, onBack }: Props) {
-  const [activeTab, setActiveTab] = useState<Tab>("overview");
+const validTabs: Tab[] = ["overview", "status", "branches", "remotes", "ignored"];
+
+export function RepoDetailView({ detail, onBack, initialTab }: Props) {
+  const startTab = validTabs.includes(initialTab as Tab) ? (initialTab as Tab) : "overview";
+  const [activeTab, setActiveTab] = useState<Tab>(startTab);
   const { summary } = detail;
 
   const tabs: { key: Tab; label: string; badge?: number }[] = [
     { key: "overview", label: "Overview" },
     {
       key: "status",
-      label: "Status",
-      badge:
-        summary.uncommitted.staged +
-        summary.uncommitted.unstaged +
-        summary.uncommitted.untracked,
+      label: "Changed Files",
+      badge: detail.changed_files.length,
     },
     { key: "branches", label: "Branches", badge: detail.branches.length },
     { key: "remotes", label: "Remotes", badge: summary.remotes.length },
@@ -83,8 +86,12 @@ export function RepoDetailView({ detail, onBack }: Props) {
 function OverviewTab({ detail }: { detail: RepoDetail }) {
   const { summary } = detail;
 
+  const handleOpenPath = () => {
+    revealItemInDir(summary.path).catch(console.error);
+  };
+
   return (
-    <div className="overview-grid">
+    <div className="overview-section">
       <div className="overview-card">
         <h3>Repository Info</h3>
         <dl>
@@ -93,109 +100,79 @@ function OverviewTab({ detail }: { detail: RepoDetail }) {
           <dt>Folder</dt>
           <dd>{summary.folder_name}</dd>
           <dt>Path</dt>
-          <dd className="monospace">{summary.path}</dd>
+          <dd>
+            <a className="path-link" onClick={handleOpenPath}>
+              {summary.path}
+            </a>
+          </dd>
           <dt>Created</dt>
           <dd>{summary.created ? formatDate(summary.created) : "Unknown"}</dd>
         </dl>
       </div>
 
       <div className="overview-card">
-        <h3>Last Commit</h3>
-        {summary.last_commit ? (
-          <dl>
-            <dt>Hash</dt>
-            <dd className="monospace">{summary.last_commit.hash}</dd>
-            <dt>Subject</dt>
-            <dd>{summary.last_commit.subject}</dd>
-            <dt>Author</dt>
-            <dd>{summary.last_commit.author}</dd>
-            <dt>Date</dt>
-            <dd>{formatDate(summary.last_commit.timestamp)}</dd>
-          </dl>
+        <h3>Recent Commits</h3>
+        {detail.recent_commits.length > 0 ? (
+          <table className="detail-table">
+            <thead>
+              <tr>
+                <th>Author</th>
+                <th>Date</th>
+                <th>Message</th>
+              </tr>
+            </thead>
+            <tbody>
+              {detail.recent_commits.map((c, i) => (
+                <tr key={i}>
+                  <td>{c.author}</td>
+                  <td className="commit-date-cell">
+                    <RelativeDate iso={c.timestamp} />
+                  </td>
+                  <td className="commit-message">{c.subject}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         ) : (
           <p className="no-data">No commits yet</p>
         )}
-      </div>
-
-      <div className="overview-card">
-        <h3>Sync Status</h3>
-        <dl>
-          <dt>Branch</dt>
-          <dd>
-            {summary.sync_status.detached
-              ? "Detached HEAD"
-              : summary.sync_status.branch || "None"}
-          </dd>
-          <dt>Upstream</dt>
-          <dd>{summary.sync_status.upstream || "None"}</dd>
-          <dt>Ahead / Behind</dt>
-          <dd>
-            {summary.sync_status.ahead} / {summary.sync_status.behind}
-          </dd>
-        </dl>
-      </div>
-
-      <div className="overview-card">
-        <h3>Uncommitted Changes</h3>
-        <dl>
-          <dt>Staged</dt>
-          <dd>{summary.uncommitted.staged}</dd>
-          <dt>Modified</dt>
-          <dd>{summary.uncommitted.unstaged}</dd>
-          <dt>Untracked</dt>
-          <dd>{summary.uncommitted.untracked}</dd>
-        </dl>
       </div>
     </div>
   );
 }
 
 function StatusTab({ detail }: { detail: RepoDetail }) {
-  return (
-    <div className="status-lists">
-      <FileList title="Staged Files" files={detail.staged_files} className="staged" />
-      <FileList
-        title="Modified Files (unstaged)"
-        files={detail.unstaged_files}
-        className="unstaged"
-      />
-      <FileList
-        title="Untracked Files"
-        files={detail.untracked_files}
-        className="untracked"
-      />
-      {detail.staged_files.length === 0 &&
-        detail.unstaged_files.length === 0 &&
-        detail.untracked_files.length === 0 && (
-          <p className="no-data">Working tree is clean</p>
-        )}
-    </div>
-  );
-}
-
-function FileList({
-  title,
-  files,
-  className,
-}: {
-  title: string;
-  files: string[];
-  className: string;
-}) {
-  if (files.length === 0) return null;
+  if (detail.changed_files.length === 0) {
+    return <p className="no-data">Working tree is clean</p>;
+  }
 
   return (
-    <div className={`file-list file-list-${className}`}>
-      <h3>
-        {title} <span className="file-count">({files.length})</span>
-      </h3>
-      <ul>
-        {files.map((f) => (
-          <li key={f} className="monospace">
-            {f}
-          </li>
-        ))}
-      </ul>
+    <div className="changed-files-list">
+      <table className="detail-table">
+        <thead>
+          <tr>
+            <th>File Name</th>
+            <th>Status</th>
+            <th>Path</th>
+          </tr>
+        </thead>
+        <tbody>
+          {detail.changed_files.map((f, i) => (
+            <tr key={`${f.path}-${f.staged}-${i}`}>
+              <td className="monospace">{f.file_name}</td>
+              <td>
+                <span className={`badge badge-status-${f.status.toLowerCase()}`}>
+                  {f.status}
+                </span>
+                {f.staged && (
+                  <span className="badge badge-staged-indicator">Staged</span>
+                )}
+              </td>
+              <td className="monospace file-path-cell">{f.path}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -276,7 +253,7 @@ function IgnoredTab({ detail }: { detail: RepoDetail }) {
   return (
     <div className="ignored-list">
       {detail.ignored_files.length === 0 ? (
-        <p className="no-data">No risky ignored files found</p>
+        <p className="no-data">No ignored files found</p>
       ) : (
         <table className="detail-table">
           <thead>
@@ -289,17 +266,27 @@ function IgnoredTab({ detail }: { detail: RepoDetail }) {
           </thead>
           <tbody>
             {detail.ignored_files.map((f) => (
-              <tr key={f.path} className={`risk-${f.risk_level.toLowerCase()}`}>
-                <td className="monospace">{f.path}</td>
-                <td>
-                  <span
-                    className={`badge badge-risk-${f.risk_level.toLowerCase()}`}
-                  >
-                    {f.risk_level}
-                  </span>
+              <tr
+                key={f.path}
+                className={f.risk_level !== "Low" ? `risk-${f.risk_level.toLowerCase()}` : ""}
+              >
+                <td className="monospace">
+                  {f.is_directory ? `${f.path}/` : f.path}
+                  {f.is_directory && f.child_count > 0 && (
+                    <span className="child-count">({f.child_count} files)</span>
+                  )}
                 </td>
-                <td>{f.category}</td>
-                <td className="monospace">{f.matched_rule}</td>
+                <td>
+                  {f.risk_level !== "Low" ? (
+                    <span className={`badge badge-risk-${f.risk_level.toLowerCase()}`}>
+                      {f.risk_level}
+                    </span>
+                  ) : (
+                    <span className="text-muted">--</span>
+                  )}
+                </td>
+                <td>{f.risk_level !== "Low" ? f.category : ""}</td>
+                <td className="monospace">{f.matched_rule || ""}</td>
               </tr>
             ))}
           </tbody>
