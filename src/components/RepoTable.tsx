@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { RepoSummary, SortField, SortDirection } from "../types";
 import { formatRelative, formatDate } from "../utils";
 
@@ -83,9 +84,7 @@ function RepoRow({ repo, onSelect }: { repo: RepoSummary; onSelect: (tab: string
       <td onClick={() => onSelect("overview")}>
         {repo.last_file_edited ? (
           <>
-            <div className="edited-date" title={formatDate(repo.last_file_edited.mtime)}>
-              {formatRelative(repo.last_file_edited.mtime)}
-            </div>
+            <RelativeDate iso={repo.last_file_edited.mtime} className="edited-date" />
             <div className="edited-file">{repo.last_file_edited.path}</div>
           </>
         ) : (
@@ -95,9 +94,7 @@ function RepoRow({ repo, onSelect }: { repo: RepoSummary; onSelect: (tab: string
       <td className="commit-cell" onClick={() => onSelect("overview")}>
         {repo.last_commit ? (
           <>
-            <div className="commit-date" title={formatDate(repo.last_commit.timestamp)}>
-              {formatRelative(repo.last_commit.timestamp)}
-            </div>
+            <RelativeDate iso={repo.last_commit.timestamp} className="commit-date" />
             <div className="commit-subject">{repo.last_commit.subject}</div>
           </>
         ) : (
@@ -138,6 +135,19 @@ function RepoRow({ repo, onSelect }: { repo: RepoSummary; onSelect: (tab: string
         )}
       </td>
     </tr>
+  );
+}
+
+function RelativeDate({ iso, className }: { iso: string; className?: string }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <div
+      className={className}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {hovered ? formatDate(iso) : formatRelative(iso)}
+    </div>
   );
 }
 
