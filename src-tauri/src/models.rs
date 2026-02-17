@@ -108,6 +108,8 @@ pub struct AppSettings {
     pub always_flag_patterns: Vec<String>,
     pub always_ignore_patterns: Vec<String>,
     pub include_untracked_mtime: bool,
+    #[serde(default)]
+    pub last_active_workspace: Option<String>,
 }
 
 impl Default for AppSettings {
@@ -140,6 +142,7 @@ impl Default for AppSettings {
                 "target/**".to_string(),
             ],
             include_untracked_mtime: false,
+            last_active_workspace: None,
         }
     }
 }

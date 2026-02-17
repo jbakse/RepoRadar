@@ -1,15 +1,24 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use tauri::State;
 
 use crate::git_ops;
 use crate::models::*;
+use crate::persistence;
 use crate::risk;
 use crate::scanner;
 
 pub struct AppState {
     pub settings: Mutex<AppSettings>,
+    pub config_dir: PathBuf,
+}
+
+impl AppState {
+    fn persist(&self) {
+        let settings = self.settings.lock().unwrap();
+        persistence::save_settings(&self.config_dir, &settings);
+    }
 }
 
 #[tauri::command]
@@ -21,6 +30,8 @@ pub fn get_settings(state: State<'_, AppState>) -> AppSettings {
 pub fn save_settings(state: State<'_, AppState>, settings: AppSettings) {
     let mut s = state.settings.lock().unwrap();
     *s = settings;
+    drop(s);
+    state.persist();
 }
 
 #[tauri::command]
@@ -28,13 +39,29 @@ pub fn add_workspace(state: State<'_, AppState>, name: String, roots: Vec<String
     let mut settings = state.settings.lock().unwrap();
     // Remove existing workspace with same name
     settings.workspaces.retain(|w| w.name != name);
-    settings.workspaces.push(Workspace { name, roots });
+    settings.workspaces.push(Workspace { name: name.clone(), roots });
+    settings.last_active_workspace = Some(name);
+    drop(settings);
+    state.persist();
 }
 
 #[tauri::command]
 pub fn remove_workspace(state: State<'_, AppState>, name: String) {
     let mut settings = state.settings.lock().unwrap();
     settings.workspaces.retain(|w| w.name != name);
+    if settings.last_active_workspace.as_deref() == Some(&name) {
+        settings.last_active_workspace = None;
+    }
+    drop(settings);
+    state.persist();
+}
+
+#[tauri::command]
+pub fn set_active_workspace(state: State<'_, AppState>, name: Option<String>) {
+    let mut settings = state.settings.lock().unwrap();
+    settings.last_active_workspace = name;
+    drop(settings);
+    state.persist();
 }
 
 #[tauri::command]

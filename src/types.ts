@@ -81,6 +81,7 @@ export interface AppSettings {
   always_flag_patterns: string[];
   always_ignore_patterns: string[];
   include_untracked_mtime: boolean;
+  last_active_workspace: string | null;
 }
 
 export type SortField =

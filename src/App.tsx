@@ -1,10 +1,11 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
   RepoSummary,
   RepoDetail,
   Workspace,
+  AppSettings,
   FilterType,
   SortField,
   SortDirection,
@@ -13,6 +14,7 @@ import { RepoTable } from "./components/RepoTable";
 import { RepoDetailView } from "./components/RepoDetailView";
 import { WorkspacePicker } from "./components/WorkspacePicker";
 import { FilterBar } from "./components/FilterBar";
+import { SettingsModal } from "./components/SettingsModal";
 import "./App.css";
 
 function App() {
@@ -27,6 +29,7 @@ function App() {
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortDir, setSortDir] = useState<SortDirection>("asc");
   const [view, setView] = useState<"table" | "detail">("table");
+  const [showSettings, setShowSettings] = useState(false);
 
   const scanRoots = useCallback(async (roots: string[]) => {
     if (roots.length === 0) return;
@@ -43,9 +46,32 @@ function App() {
     }
   }, []);
 
+  // Load saved settings on mount and restore last workspace
+  useEffect(() => {
+    async function loadSettings() {
+      try {
+        const settings = await invoke<AppSettings>("get_settings");
+        setWorkspaces(settings.workspaces);
+        if (settings.last_active_workspace) {
+          const ws = settings.workspaces.find(
+            (w) => w.name === settings.last_active_workspace
+          );
+          if (ws) {
+            setActiveWorkspace(ws);
+            scanRoots(ws.roots);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load settings:", err);
+      }
+    }
+    loadSettings();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleSelectWorkspace = useCallback(
     (workspace: Workspace) => {
       setActiveWorkspace(workspace);
+      invoke("set_active_workspace", { name: workspace.name });
       scanRoots(workspace.roots);
     },
     [scanRoots]
@@ -127,6 +153,23 @@ function App() {
     setView("table");
     setSelectedRepo(null);
   }, []);
+
+  const handleSaveSettings = useCallback(
+    async (settings: AppSettings) => {
+      await invoke("save_settings", { settings });
+      setWorkspaces(settings.workspaces);
+      // Re-scan if active workspace still exists (settings may have changed scan behavior)
+      if (activeWorkspace) {
+        const ws = settings.workspaces.find(
+          (w) => w.name === activeWorkspace.name
+        );
+        if (ws) {
+          scanRoots(ws.roots);
+        }
+      }
+    },
+    [activeWorkspace, scanRoots]
+  );
 
   const handleSort = useCallback(
     (field: SortField) => {
@@ -227,6 +270,13 @@ function App() {
           >
             {scanning ? "Scanning..." : "Refresh"}
           </button>
+          <button
+            className="btn btn-secondary"
+            onClick={() => setShowSettings(true)}
+            title="Settings"
+          >
+            Settings
+          </button>
         </div>
       </header>
 
@@ -270,6 +320,13 @@ function App() {
           <RepoDetailView detail={selectedRepo} onBack={handleBackToTable} />
         ) : null}
       </main>
+
+      {showSettings && (
+        <SettingsModal
+          onClose={() => setShowSettings(false)}
+          onSave={handleSaveSettings}
+        />
+      )}
     </div>
   );
 }
