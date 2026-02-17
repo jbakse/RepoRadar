@@ -644,10 +644,7 @@
 }
 
 .overview-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 16px;
+  padding: 0;
 }
 
 .overview-card h3 {
@@ -731,6 +728,12 @@
 
 .path-link:hover {
   text-decoration: underline;
+}
+
+/* Commit date column - wide enough for full date on hover */
+.commit-date-cell {
+  min-width: 180px;
+  white-space: nowrap;
 }
 
 /* Commit message in table */

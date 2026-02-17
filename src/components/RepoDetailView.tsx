@@ -125,7 +125,7 @@ function OverviewTab({ detail }: { detail: RepoDetail }) {
               {detail.recent_commits.map((c, i) => (
                 <tr key={i}>
                   <td>{c.author}</td>
-                  <td>
+                  <td className="commit-date-cell">
                     <RelativeDate iso={c.timestamp} />
                   </td>
                   <td className="commit-message">{c.subject}</td>
