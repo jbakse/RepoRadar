@@ -65,7 +65,7 @@ pub fn find_ignored_files(
 
     // Get list of all files on disk (including ignored ones)
     // We use git ls-files to get ignored files
-    let output = Command::new("git")
+    let output = Command::new(crate::git_ops::git_binary())
         .args(["-C", &repo_path.to_string_lossy()])
         .args(["ls-files", "--others", "--ignored", "--exclude-standard", "-z"])
         .output();

@@ -1,10 +1,50 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::OnceLock;
 
 use crate::models::*;
 
+/// Resolve the git binary path once and cache it.
+/// Checks GIT_PATH env var, then `which git`, then common locations.
+pub fn git_binary() -> &'static PathBuf {
+    static GIT_BIN: OnceLock<PathBuf> = OnceLock::new();
+    GIT_BIN.get_or_init(|| {
+        // 1. Check GIT_PATH env var
+        if let Ok(path) = std::env::var("GIT_PATH") {
+            let p = PathBuf::from(&path);
+            if p.exists() {
+                return p;
+            }
+        }
+
+        // 2. Try `which git`
+        if let Ok(output) = Command::new("which").arg("git").output() {
+            if output.status.success() {
+                let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if !path.is_empty() {
+                    let p = PathBuf::from(&path);
+                    if p.exists() {
+                        return p;
+                    }
+                }
+            }
+        }
+
+        // 3. Common fallback locations
+        for candidate in &["/usr/bin/git", "/usr/local/bin/git", "/opt/homebrew/bin/git"] {
+            let p = PathBuf::from(candidate);
+            if p.exists() {
+                return p;
+            }
+        }
+
+        // Last resort: just use "git" and hope PATH works
+        PathBuf::from("git")
+    })
+}
+
 fn run_git(repo_path: &Path, args: &[&str]) -> Result<String, String> {
-    let output = Command::new("git")
+    let output = Command::new(git_binary())
         .args(["-C", &repo_path.to_string_lossy()])
         .args(args)
         .output()
