@@ -18,9 +18,11 @@ import { WorkspacePicker } from "./components/WorkspacePicker";
 import { FilterBar } from "./components/FilterBar";
 import { SettingsModal } from "./components/SettingsModal";
 import { ScanProgressBar } from "./components/ScanProgressBar";
+import { useCompact } from "./hooks/useCompact";
 import "./App.css";
 
 function App() {
+  const isCompact = useCompact();
   const [repos, setRepos] = useState<RepoSummary[]>([]);
   const [selectedRepo, setSelectedRepo] = useState<RepoDetail | null>(null);
   const [folders, setFolders] = useState<string[]>([]);
@@ -355,6 +357,7 @@ function App() {
                   sortDir={sortDir}
                   onSort={handleSort}
                   onSelect={handleSelectRepo}
+                  isCompact={isCompact}
                 />
               </>
             ) : null}

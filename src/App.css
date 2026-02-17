@@ -972,3 +972,62 @@
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
 }
+
+/* ==================== Compact Mode (<=640px) ==================== */
+@media (max-width: 640px) {
+  /* Hide secondary text in table rows */
+  .repo-path,
+  .edited-file,
+  .commit-subject {
+    display: none;
+  }
+
+  /* Reduce cell padding */
+  .repo-row td {
+    padding: 8px 8px;
+  }
+
+  .repo-table th {
+    padding: 8px 8px;
+  }
+
+  /* Remove min-width constraint on repo name */
+  .repo-name-cell {
+    min-width: unset;
+  }
+
+  /* Remove max-width on commit cell (subject is hidden) */
+  .commit-cell {
+    max-width: unset;
+  }
+
+  /* Change badges to horizontal row in compact mode */
+  .changes-badges {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  /* Compact badges: tighter padding */
+  .badge {
+    padding: 2px 6px;
+  }
+
+  /* Reduce header and filter bar padding */
+  .app-header {
+    padding: 8px 12px;
+  }
+
+  .filter-bar {
+    padding: 8px 12px;
+  }
+
+  /* Tighten font sizes */
+  .repo-name {
+    font-size: 13px;
+  }
+
+  .sync-status {
+    font-size: 11px;
+  }
+}
