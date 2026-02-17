@@ -9,12 +9,31 @@ pub fn settings_path(app_data_dir: &PathBuf) -> PathBuf {
 }
 
 /// Load settings from disk, falling back to defaults if file doesn't exist or is invalid.
+/// Migrates legacy workspace data to the flat folders model.
 pub fn load_settings(app_data_dir: &PathBuf) -> AppSettings {
     let path = settings_path(app_data_dir);
-    match fs::read_to_string(&path) {
+    let mut settings: AppSettings = match fs::read_to_string(&path) {
         Ok(contents) => serde_json::from_str(&contents).unwrap_or_default(),
-        Err(_) => AppSettings::default(),
+        Err(_) => return AppSettings::default(),
+    };
+
+    // Migrate legacy workspaces → flat folders
+    if settings.folders.is_empty() && !settings.workspaces.is_empty() {
+        let mut all_roots: Vec<String> = settings
+            .workspaces
+            .iter()
+            .flat_map(|w| w.roots.clone())
+            .collect();
+        all_roots.sort();
+        all_roots.dedup();
+        settings.folders = all_roots;
+        settings.workspaces.clear();
+        settings.last_active_workspace = None;
+        // Persist the migrated settings
+        save_settings(app_data_dir, &settings);
     }
+
+    settings
 }
 
 /// Save settings to disk. Creates the directory if needed.

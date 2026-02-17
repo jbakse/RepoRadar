@@ -37,31 +37,30 @@ pub fn save_settings(state: State<'_, AppState>, settings: AppSettings) {
 }
 
 #[tauri::command]
-pub fn add_workspace(state: State<'_, AppState>, name: String, roots: Vec<String>) {
+pub fn add_folder(state: State<'_, AppState>, path: String) {
     let mut settings = state.settings.lock().unwrap();
-    // Remove existing workspace with same name
-    settings.workspaces.retain(|w| w.name != name);
-    settings.workspaces.push(Workspace { name: name.clone(), roots });
-    settings.last_active_workspace = Some(name);
-    drop(settings);
-    state.persist();
-}
-
-#[tauri::command]
-pub fn remove_workspace(state: State<'_, AppState>, name: String) {
-    let mut settings = state.settings.lock().unwrap();
-    settings.workspaces.retain(|w| w.name != name);
-    if settings.last_active_workspace.as_deref() == Some(&name) {
-        settings.last_active_workspace = None;
+    if !settings.folders.contains(&path) {
+        settings.folders.push(path);
     }
     drop(settings);
     state.persist();
 }
 
 #[tauri::command]
-pub fn set_active_workspace(state: State<'_, AppState>, name: Option<String>) {
+pub fn remove_folder(state: State<'_, AppState>, path: String) {
     let mut settings = state.settings.lock().unwrap();
-    settings.last_active_workspace = name;
+    settings.folders.retain(|f| f != &path);
+    if settings.active_folder.as_deref() == Some(&path) {
+        settings.active_folder = None;
+    }
+    drop(settings);
+    state.persist();
+}
+
+#[tauri::command]
+pub fn set_active_folder(state: State<'_, AppState>, path: Option<String>) {
+    let mut settings = state.settings.lock().unwrap();
+    settings.active_folder = path;
     drop(settings);
     state.persist();
 }

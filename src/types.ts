@@ -1,8 +1,3 @@
-export interface Workspace {
-  name: string;
-  roots: string[];
-}
-
 export interface RepoSummary {
   path: string;
   folder_name: string;
@@ -93,12 +88,12 @@ export interface RepoDetail {
 }
 
 export interface AppSettings {
-  workspaces: Workspace[];
+  folders: string[];
+  active_folder: string | null;
   discovery_exclusions: string[];
   always_flag_patterns: string[];
   always_ignore_patterns: string[];
   include_untracked_mtime: boolean;
-  last_active_workspace: string | null;
 }
 
 export type SortField =

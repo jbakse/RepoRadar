@@ -34,9 +34,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::get_settings,
             commands::save_settings,
-            commands::add_workspace,
-            commands::remove_workspace,
-            commands::set_active_workspace,
+            commands::add_folder,
+            commands::remove_folder,
+            commands::set_active_folder,
             commands::scan_repos,
             commands::start_scan,
             commands::get_repo_detail,

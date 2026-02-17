@@ -1,12 +1,6 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Workspace {
-    pub name: String,
-    pub roots: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RepoSummary {
     pub path: String,
     pub folder_name: String,
@@ -128,21 +122,37 @@ pub struct ScanDiscoveryComplete {
     pub total: usize,
 }
 
+/// Legacy workspace struct, kept only for migration from old settings.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LegacyWorkspace {
+    pub name: String,
+    pub roots: Vec<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppSettings {
-    pub workspaces: Vec<Workspace>,
+    /// Flat list of folder paths to scan.
+    #[serde(default)]
+    pub folders: Vec<String>,
+    /// Currently active folder path, or None for "All Folders".
+    #[serde(default)]
+    pub active_folder: Option<String>,
     pub discovery_exclusions: Vec<String>,
     pub always_flag_patterns: Vec<String>,
     pub always_ignore_patterns: Vec<String>,
     pub include_untracked_mtime: bool,
-    #[serde(default)]
+    /// Legacy fields kept for migration — ignored after migration.
+    #[serde(default, skip_serializing)]
+    pub workspaces: Vec<LegacyWorkspace>,
+    #[serde(default, skip_serializing)]
     pub last_active_workspace: Option<String>,
 }
 
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
-            workspaces: vec![],
+            folders: vec![],
+            active_folder: None,
             discovery_exclusions: vec![
                 "node_modules".to_string(),
                 ".venv".to_string(),
@@ -169,6 +179,7 @@ impl Default for AppSettings {
                 "target/**".to_string(),
             ],
             include_untracked_mtime: false,
+            workspaces: vec![],
             last_active_workspace: None,
         }
     }

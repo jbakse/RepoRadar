@@ -5,7 +5,6 @@ import { open } from "@tauri-apps/plugin-dialog";
 import {
   RepoSummary,
   RepoDetail,
-  Workspace,
   AppSettings,
   FilterType,
   SortField,
@@ -24,10 +23,8 @@ import "./App.css";
 function App() {
   const [repos, setRepos] = useState<RepoSummary[]>([]);
   const [selectedRepo, setSelectedRepo] = useState<RepoDetail | null>(null);
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(
-    null
-  );
+  const [folders, setFolders] = useState<string[]>([]);
+  const [activeFolder, setActiveFolder] = useState<string | null>(null);
   const [scanState, setScanState] = useState<{
     phase: "idle" | "discovering" | "analyzing";
     total: number;
@@ -107,22 +104,28 @@ function App() {
     }
   }, [cleanupListeners]);
 
-  // Load saved settings on mount and restore last workspace
+  // Helper: get roots to scan based on active folder
+  const getRoots = useCallback(
+    (folder: string | null, allFolders: string[]) => {
+      return folder ? [folder] : allFolders;
+    },
+    []
+  );
+
+  // Load saved settings on mount and restore last active folder
   useEffect(() => {
     if (initialLoadDone.current) return;
     initialLoadDone.current = true;
     async function loadSettings() {
       try {
         const settings = await invoke<AppSettings>("get_settings");
-        setWorkspaces(settings.workspaces);
-        if (settings.last_active_workspace) {
-          const ws = settings.workspaces.find(
-            (w) => w.name === settings.last_active_workspace
-          );
-          if (ws) {
-            setActiveWorkspace(ws);
-            scanRoots(ws.roots);
-          }
+        setFolders(settings.folders);
+        setActiveFolder(settings.active_folder);
+        const roots = settings.active_folder
+          ? [settings.active_folder]
+          : settings.folders;
+        if (roots.length > 0) {
+          scanRoots(roots);
         }
       } catch (err) {
         console.error("Failed to load settings:", err);
@@ -131,74 +134,53 @@ function App() {
     loadSettings();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleSelectWorkspace = useCallback(
-    (workspace: Workspace) => {
-      setActiveWorkspace(workspace);
-      invoke("set_active_workspace", { name: workspace.name });
-      scanRoots(workspace.roots);
+  const handleSelectFolder = useCallback(
+    (folder: string | null) => {
+      setActiveFolder(folder);
+      invoke("set_active_folder", { path: folder });
+      scanRoots(getRoots(folder, folders));
     },
-    [scanRoots]
+    [scanRoots, getRoots, folders]
   );
 
   const handleAddFolder = useCallback(async () => {
-    const selected = await open({ directory: true, multiple: true });
+    const selected = await open({ directory: true, multiple: false });
     if (selected) {
-      const folders = Array.isArray(selected) ? selected : [selected];
-      if (activeWorkspace) {
-        const newRoots = [...new Set([...activeWorkspace.roots, ...folders])];
-        const updated = { ...activeWorkspace, roots: newRoots };
-        setActiveWorkspace(updated);
-        setWorkspaces((prev) =>
-          prev.map((w) => (w.name === updated.name ? updated : w))
-        );
-        await invoke("add_workspace", {
-          name: updated.name,
-          roots: updated.roots,
-        });
-        scanRoots(newRoots);
-      } else {
-        const name = "Default";
-        const ws: Workspace = { name, roots: folders };
-        setWorkspaces((prev) => [...prev, ws]);
-        setActiveWorkspace(ws);
-        await invoke("add_workspace", { name, roots: folders });
-        scanRoots(folders);
-      }
+      const path = Array.isArray(selected) ? selected[0] : selected;
+      const newFolders = folders.includes(path) ? folders : [...folders, path];
+      setFolders(newFolders);
+      setActiveFolder(path);
+      await invoke("add_folder", { path });
+      await invoke("set_active_folder", { path });
+      scanRoots([path]);
     }
-  }, [activeWorkspace, scanRoots]);
+  }, [folders, scanRoots]);
 
-  const handleCreateWorkspace = useCallback(
-    async (name: string) => {
-      const selected = await open({ directory: true, multiple: true });
-      if (selected) {
-        const folders = Array.isArray(selected) ? selected : [selected];
-        const ws: Workspace = { name, roots: folders };
-        setWorkspaces((prev) => [...prev.filter((w) => w.name !== name), ws]);
-        setActiveWorkspace(ws);
-        await invoke("add_workspace", { name, roots: folders });
-        scanRoots(folders);
+  const handleRemoveFolder = useCallback(
+    async (path: string) => {
+      const newFolders = folders.filter((f) => f !== path);
+      setFolders(newFolders);
+      await invoke("remove_folder", { path });
+      if (activeFolder === path) {
+        // Switch to "All Folders"
+        setActiveFolder(null);
+        await invoke("set_active_folder", { path: null });
+        if (newFolders.length > 0) {
+          scanRoots(newFolders);
+        } else {
+          setRepos([]);
+        }
       }
     },
-    [scanRoots]
-  );
-
-  const handleDeleteWorkspace = useCallback(
-    async (name: string) => {
-      setWorkspaces((prev) => prev.filter((w) => w.name !== name));
-      if (activeWorkspace?.name === name) {
-        setActiveWorkspace(null);
-        setRepos([]);
-      }
-      await invoke("remove_workspace", { name });
-    },
-    [activeWorkspace]
+    [folders, activeFolder, scanRoots]
   );
 
   const handleRefresh = useCallback(() => {
-    if (activeWorkspace) {
-      scanRoots(activeWorkspace.roots);
+    const roots = getRoots(activeFolder, folders);
+    if (roots.length > 0) {
+      scanRoots(roots);
     }
-  }, [activeWorkspace, scanRoots]);
+  }, [activeFolder, folders, getRoots, scanRoots]);
 
   const handleSelectRepo = useCallback(async (repo: RepoSummary, tab: string) => {
     try {
@@ -221,18 +203,14 @@ function App() {
   const handleSaveSettings = useCallback(
     async (settings: AppSettings) => {
       await invoke("save_settings", { settings });
-      setWorkspaces(settings.workspaces);
-      // Re-scan if active workspace still exists (settings may have changed scan behavior)
-      if (activeWorkspace) {
-        const ws = settings.workspaces.find(
-          (w) => w.name === activeWorkspace.name
-        );
-        if (ws) {
-          scanRoots(ws.roots);
-        }
+      setFolders(settings.folders);
+      // Re-scan with current folder selection
+      const roots = getRoots(activeFolder, settings.folders);
+      if (roots.length > 0) {
+        scanRoots(roots);
       }
     },
-    [activeWorkspace, scanRoots]
+    [activeFolder, getRoots, scanRoots]
   );
 
   const handleSort = useCallback(
@@ -318,19 +296,16 @@ function App() {
         <h1 className="app-title">RepoRadar</h1>
         <div className="header-actions">
           <WorkspacePicker
-            workspaces={workspaces}
-            activeWorkspace={activeWorkspace}
-            onSelect={handleSelectWorkspace}
-            onCreate={handleCreateWorkspace}
-            onDelete={handleDeleteWorkspace}
+            folders={folders}
+            activeFolder={activeFolder}
+            onSelect={handleSelectFolder}
+            onAdd={handleAddFolder}
+            onRemove={handleRemoveFolder}
           />
-          <button className="btn btn-primary" onClick={handleAddFolder}>
-            Add Folder
-          </button>
           <button
             className="btn btn-secondary"
             onClick={handleRefresh}
-            disabled={scanning || !activeWorkspace}
+            disabled={scanning || folders.length === 0}
           >
             {scanning ? "Scanning..." : "Refresh"}
           </button>
@@ -360,8 +335,7 @@ function App() {
                 <div className="empty-state-icon">&#128269;</div>
                 <h2>No repositories found</h2>
                 <p>
-                  Add a folder to scan for Git repositories, or create a
-                  workspace to get started.
+                  Add a folder to scan for Git repositories.
                 </p>
                 <button className="btn btn-primary" onClick={handleAddFolder}>
                   Add Folder

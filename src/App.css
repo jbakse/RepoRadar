@@ -175,13 +175,24 @@
   color: var(--text-muted);
 }
 
+.folder-path {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: "SF Mono", "Fira Code", monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
+}
+
 .workspace-delete {
   padding: 4px 10px;
   border: none;
   background: none;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 14px;
+  font-size: 16px;
+  flex-shrink: 0;
 }
 
 .workspace-delete:hover {
@@ -197,28 +208,6 @@
 .workspace-new {
   color: var(--accent);
   font-weight: 500;
-}
-
-.workspace-create-form {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 10px;
-}
-
-.workspace-create-form input {
-  flex: 1;
-  padding: 4px 8px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  font-size: 13px;
-  outline: none;
-}
-
-.workspace-create-form input:focus {
-  border-color: var(--accent);
 }
 
 /* Main Content */
