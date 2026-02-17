@@ -41,7 +41,7 @@ export function RepoTable({ repos, sortField, sortDir, onSort, onSelect, isCompa
 
   return (
     <div className="repo-table-wrapper">
-      <table className="repo-table">
+      <table className="repo-table repo-table-header">
         <thead>
           <tr>
             <th onClick={() => onSort("name")}>
@@ -70,12 +70,16 @@ export function RepoTable({ repos, sortField, sortDir, onSort, onSelect, isCompa
             </th>
           </tr>
         </thead>
-        <tbody>
-          {repos.map((repo) => (
-            <RepoRow key={repo.path} repo={repo} onSelect={(tab) => onSelect(repo, tab)} isCompact={isCompact} />
-          ))}
-        </tbody>
       </table>
+      <div className="repo-table-scroll">
+        <table className="repo-table">
+          <tbody>
+            {repos.map((repo) => (
+              <RepoRow key={repo.path} repo={repo} onSelect={(tab) => onSelect(repo, tab)} isCompact={isCompact} />
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
