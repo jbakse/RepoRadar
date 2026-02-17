@@ -39,6 +39,7 @@ function App() {
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortDir, setSortDir] = useState<SortDirection>("asc");
   const [view, setView] = useState<"table" | "detail">("table");
+  const [initialTab, setInitialTab] = useState<string>("overview");
   const [showSettings, setShowSettings] = useState(false);
 
   const unlistenRef = useRef<UnlistenFn[]>([]);
@@ -199,11 +200,12 @@ function App() {
     }
   }, [activeWorkspace, scanRoots]);
 
-  const handleSelectRepo = useCallback(async (repo: RepoSummary) => {
+  const handleSelectRepo = useCallback(async (repo: RepoSummary, tab: string) => {
     try {
       const detail = await invoke<RepoDetail>("get_repo_detail", {
         repoPath: repo.path,
       });
+      setInitialTab(tab);
       setSelectedRepo(detail);
       setView("detail");
     } catch (err) {
@@ -384,7 +386,7 @@ function App() {
             ) : null}
           </>
         ) : selectedRepo ? (
-          <RepoDetailView detail={selectedRepo} onBack={handleBackToTable} />
+          <RepoDetailView detail={selectedRepo} onBack={handleBackToTable} initialTab={initialTab} />
         ) : null}
       </main>
 

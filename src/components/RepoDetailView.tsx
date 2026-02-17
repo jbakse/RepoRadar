@@ -5,12 +5,16 @@ import { formatDate } from "../utils";
 interface Props {
   detail: RepoDetail;
   onBack: () => void;
+  initialTab?: string;
 }
 
 type Tab = "overview" | "status" | "branches" | "remotes" | "ignored";
 
-export function RepoDetailView({ detail, onBack }: Props) {
-  const [activeTab, setActiveTab] = useState<Tab>("overview");
+const validTabs: Tab[] = ["overview", "status", "branches", "remotes", "ignored"];
+
+export function RepoDetailView({ detail, onBack, initialTab }: Props) {
+  const startTab = validTabs.includes(initialTab as Tab) ? (initialTab as Tab) : "overview";
+  const [activeTab, setActiveTab] = useState<Tab>(startTab);
   const { summary } = detail;
 
   const tabs: { key: Tab; label: string; badge?: number }[] = [

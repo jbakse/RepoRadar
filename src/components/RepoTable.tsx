@@ -1,12 +1,12 @@
 import { RepoSummary, SortField, SortDirection } from "../types";
-import { formatRelative } from "../utils";
+import { formatRelative, formatDate } from "../utils";
 
 interface Props {
   repos: RepoSummary[];
   sortField: SortField;
   sortDir: SortDirection;
   onSort: (field: SortField) => void;
-  onSelect: (repo: RepoSummary) => void;
+  onSelect: (repo: RepoSummary, tab: string) => void;
 }
 
 function SortIndicator({
@@ -60,7 +60,7 @@ export function RepoTable({ repos, sortField, sortDir, onSort, onSelect }: Props
         </thead>
         <tbody>
           {repos.map((repo) => (
-            <RepoRow key={repo.path} repo={repo} onClick={() => onSelect(repo)} />
+            <RepoRow key={repo.path} repo={repo} onSelect={(tab) => onSelect(repo, tab)} />
           ))}
         </tbody>
       </table>
@@ -68,22 +68,22 @@ export function RepoTable({ repos, sortField, sortDir, onSort, onSelect }: Props
   );
 }
 
-function RepoRow({ repo, onClick }: { repo: RepoSummary; onClick: () => void }) {
+function RepoRow({ repo, onSelect }: { repo: RepoSummary; onSelect: (tab: string) => void }) {
   const totalChanges =
     repo.uncommitted.staged + repo.uncommitted.unstaged + repo.uncommitted.untracked;
 
   const syncLabel = getSyncLabel(repo);
 
   return (
-    <tr className="repo-row" onClick={onClick}>
-      <td className="repo-name-cell">
+    <tr className="repo-row">
+      <td className="repo-name-cell" onClick={() => onSelect("overview")}>
         <div className="repo-name">{repo.repo_name}</div>
         <div className="repo-path">{repo.path}</div>
       </td>
-      <td>
+      <td onClick={() => onSelect("overview")}>
         {repo.last_file_edited ? (
           <>
-            <div className="edited-date">
+            <div className="edited-date" title={formatDate(repo.last_file_edited.mtime)}>
               {formatRelative(repo.last_file_edited.mtime)}
             </div>
             <div className="edited-file">{repo.last_file_edited.path}</div>
@@ -92,10 +92,10 @@ function RepoRow({ repo, onClick }: { repo: RepoSummary; onClick: () => void }) 
           <span className="no-data">--</span>
         )}
       </td>
-      <td className="commit-cell">
+      <td className="commit-cell" onClick={() => onSelect("overview")}>
         {repo.last_commit ? (
           <>
-            <div className="commit-date">
+            <div className="commit-date" title={formatDate(repo.last_commit.timestamp)}>
               {formatRelative(repo.last_commit.timestamp)}
             </div>
             <div className="commit-subject">{repo.last_commit.subject}</div>
@@ -104,7 +104,7 @@ function RepoRow({ repo, onClick }: { repo: RepoSummary; onClick: () => void }) 
           <span className="no-data">No commits</span>
         )}
       </td>
-      <td>
+      <td onClick={() => onSelect("status")}>
         {totalChanges > 0 ? (
           <div className="changes-badges">
             {repo.uncommitted.staged > 0 && (
@@ -127,10 +127,10 @@ function RepoRow({ repo, onClick }: { repo: RepoSummary; onClick: () => void }) 
           <span className="badge badge-clean">Clean</span>
         )}
       </td>
-      <td>
+      <td onClick={() => onSelect("branches")}>
         <div className={`sync-status ${syncLabel.className}`}>{syncLabel.text}</div>
       </td>
-      <td>
+      <td onClick={() => onSelect("ignored")}>
         {repo.has_high_risk_ignored ? (
           <span className="badge badge-risk-high">High Risk</span>
         ) : (
@@ -173,6 +173,14 @@ function getSyncLabel(repo: RepoSummary): { text: string; className: string } {
 
   if (sync.behind > 0) {
     return { text: `${sync.behind}\u2193 behind`, className: "sync-behind" };
+  }
+
+  if (sync.branches_without_upstream.length > 0) {
+    const count = sync.branches_without_upstream.length;
+    return {
+      text: `${count} unpushed branch${count > 1 ? "es" : ""}`,
+      className: "sync-warning",
+    };
   }
 
   return { text: "In sync", className: "sync-ok" };

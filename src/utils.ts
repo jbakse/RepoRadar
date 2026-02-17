@@ -23,8 +23,11 @@ export function formatRelative(isoString: string): string {
     const diffHr = Math.floor(diffMin / 60);
     const diffDay = Math.floor(diffHr / 24);
 
-    if (diffDay > 30) {
-      return formatDate(isoString);
+    if (diffDay >= 365) {
+      return `${Math.floor(diffDay / 365)}y ago`;
+    }
+    if (diffDay >= 7) {
+      return `${Math.floor(diffDay / 7)}w ago`;
     }
     if (diffDay > 0) {
       return `${diffDay}d ago`;
