@@ -45,15 +45,15 @@ export function RepoTable({ repos, sortField, sortDir, onSort, onSelect }: Props
               <SortIndicator field="last_commit" currentField={sortField} currentDir={sortDir} />
             </th>
             <th onClick={() => onSort("changes")}>
-              Changes
+              Changed Files
               <SortIndicator field="changes" currentField={sortField} currentDir={sortDir} />
             </th>
             <th onClick={() => onSort("sync")}>
-              Sync
+              Branches
               <SortIndicator field="sync" currentField={sortField} currentDir={sortDir} />
             </th>
             <th onClick={() => onSort("risk")}>
-              Risk
+              Ignored Files
               <SortIndicator field="risk" currentField={sortField} currentDir={sortDir} />
             </th>
           </tr>

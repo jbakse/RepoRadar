@@ -21,7 +21,7 @@ export function RepoDetailView({ detail, onBack, initialTab }: Props) {
     { key: "overview", label: "Overview" },
     {
       key: "status",
-      label: "Status",
+      label: "Changed Files",
       badge:
         summary.uncommitted.staged +
         summary.uncommitted.unstaged +
