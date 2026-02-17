@@ -698,7 +698,6 @@
 }
 
 .current-branch {
-  background: rgba(108, 99, 255, 0.08);
 }
 
 .current-indicator {
@@ -807,11 +806,9 @@
 
 /* Risk rows */
 .risk-high td {
-  background: rgba(248, 113, 113, 0.05);
 }
 
 .risk-medium td {
-  background: rgba(251, 146, 60, 0.05);
 }
 
 /* Utility */
