@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 
-const COMPACT_BREAKPOINT = 640;
+const COMPACT_BREAKPOINT = 700;
 
 export function useCompact(): boolean {
   const [isCompact, setIsCompact] = useState(
-    () => window.innerWidth <= COMPACT_BREAKPOINT
+    () => window.innerWidth <= COMPACT_BREAKPOINT,
   );
 
   useEffect(() => {
