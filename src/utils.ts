@@ -13,7 +13,7 @@ export function formatDate(isoString: string): string {
   }
 }
 
-export function formatRelative(isoString: string): string {
+export function formatRelative(isoString: string, compact: boolean = false): string {
   try {
     const date = new Date(isoString);
     const now = new Date();
@@ -24,21 +24,27 @@ export function formatRelative(isoString: string): string {
     const diffDay = Math.floor(diffHr / 24);
 
     if (diffDay >= 365) {
-      return `${Math.floor(diffDay / 365)}y ago`;
+      const n = Math.floor(diffDay / 365);
+      return compact ? `${n}y` : `${n} ${n === 1 ? "year" : "years"} ago`;
+    }
+    if (diffDay >= 30) {
+      const n = Math.floor(diffDay / 30);
+      return compact ? `${n}mo` : `${n} ${n === 1 ? "month" : "months"} ago`;
     }
     if (diffDay >= 7) {
-      return `${Math.floor(diffDay / 7)}w ago`;
+      const n = Math.floor(diffDay / 7);
+      return compact ? `${n}w` : `${n} ${n === 1 ? "week" : "weeks"} ago`;
     }
     if (diffDay > 0) {
-      return `${diffDay}d ago`;
+      return compact ? `${diffDay}d` : `${diffDay} ${diffDay === 1 ? "day" : "days"} ago`;
     }
     if (diffHr > 0) {
-      return `${diffHr}h ago`;
+      return compact ? `${diffHr}h` : `${diffHr} ${diffHr === 1 ? "hour" : "hours"} ago`;
     }
     if (diffMin > 0) {
-      return `${diffMin}m ago`;
+      return compact ? `${diffMin}m` : `${diffMin} ${diffMin === 1 ? "minute" : "minutes"} ago`;
     }
-    return "just now";
+    return compact ? "now" : "just now";
   } catch {
     return isoString;
   }
