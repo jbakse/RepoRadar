@@ -6,7 +6,8 @@ mod risk;
 mod scanner;
 
 use commands::AppState;
-use std::sync::Mutex;
+use std::sync::atomic::AtomicU64;
+use std::sync::{Arc, Mutex};
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -25,6 +26,7 @@ pub fn run() {
             app.manage(AppState {
                 settings: Mutex::new(settings),
                 config_dir: app_data_dir,
+                current_scan_id: Arc::new(AtomicU64::new(0)),
             });
 
             Ok(())
@@ -36,6 +38,7 @@ pub fn run() {
             commands::remove_workspace,
             commands::set_active_workspace,
             commands::scan_repos,
+            commands::start_scan,
             commands::get_repo_detail,
             commands::refresh_repo,
         ])

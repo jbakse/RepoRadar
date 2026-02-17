@@ -102,6 +102,11 @@ pub struct ScanProgress {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScanDiscoveryComplete {
+    pub total: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppSettings {
     pub workspaces: Vec<Workspace>,
     pub discovery_exclusions: Vec<String>,

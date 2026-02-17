@@ -101,3 +101,13 @@ export type FilterType =
   | "unpushed"
   | "missing_remote"
   | "high_risk";
+
+export interface ScanProgress {
+  total: number;
+  completed: number;
+  current_repo: string | null;
+}
+
+export interface ScanDiscoveryComplete {
+  total: number;
+}

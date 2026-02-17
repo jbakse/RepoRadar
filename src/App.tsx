@@ -1,5 +1,6 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
   RepoSummary,
@@ -9,12 +10,15 @@ import {
   FilterType,
   SortField,
   SortDirection,
+  ScanProgress,
+  ScanDiscoveryComplete,
 } from "./types";
 import { RepoTable } from "./components/RepoTable";
 import { RepoDetailView } from "./components/RepoDetailView";
 import { WorkspacePicker } from "./components/WorkspacePicker";
 import { FilterBar } from "./components/FilterBar";
 import { SettingsModal } from "./components/SettingsModal";
+import { ScanProgressBar } from "./components/ScanProgressBar";
 import "./App.css";
 
 function App() {
@@ -24,27 +28,82 @@ function App() {
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(
     null
   );
-  const [scanning, setScanning] = useState(false);
+  const [scanState, setScanState] = useState<{
+    phase: "idle" | "discovering" | "analyzing";
+    total: number;
+    completed: number;
+    currentRepo: string | null;
+  }>({ phase: "idle", total: 0, completed: 0, currentRepo: null });
+  const scanning = scanState.phase !== "idle";
   const [filter, setFilter] = useState<FilterType>("all");
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortDir, setSortDir] = useState<SortDirection>("asc");
   const [view, setView] = useState<"table" | "detail">("table");
   const [showSettings, setShowSettings] = useState(false);
 
+  const unlistenRef = useRef<UnlistenFn[]>([]);
+
+  const cleanupListeners = useCallback(() => {
+    for (const unlisten of unlistenRef.current) {
+      unlisten();
+    }
+    unlistenRef.current = [];
+  }, []);
+
+  // Clean up listeners on unmount
+  useEffect(() => {
+    return () => cleanupListeners();
+  }, [cleanupListeners]);
+
   const scanRoots = useCallback(async (roots: string[]) => {
     if (roots.length === 0) return;
-    setScanning(true);
+
+    // Clean up any existing listeners from a previous scan
+    cleanupListeners();
+
+    setRepos([]);
     setSelectedRepo(null);
     setView("table");
+    setScanState({ phase: "discovering", total: 0, completed: 0, currentRepo: null });
+
+    // Set up event listeners before starting the scan
+    const unlistens = await Promise.all([
+      listen<ScanDiscoveryComplete>("scan:discovery-complete", (event) => {
+        setScanState((prev) => ({
+          ...prev,
+          phase: "analyzing",
+          total: event.payload.total,
+        }));
+      }),
+      listen<ScanProgress>("scan:progress", (event) => {
+        setScanState((prev) => ({
+          ...prev,
+          completed: event.payload.completed,
+          currentRepo: event.payload.current_repo,
+        }));
+      }),
+      listen<RepoSummary>("scan:repo-ready", (event) => {
+        setRepos((prev) => [...prev, event.payload]);
+      }),
+      listen("scan:complete", () => {
+        setScanState({ phase: "idle", total: 0, completed: 0, currentRepo: null });
+        // Defer cleanup so this handler can finish before being unregistered
+        setTimeout(() => {
+          for (const u of unlistenRef.current) u();
+          unlistenRef.current = [];
+        }, 0);
+      }),
+    ]);
+    unlistenRef.current = unlistens;
+
     try {
-      const results = await invoke<RepoSummary[]>("scan_repos", { roots });
-      setRepos(results);
+      await invoke("start_scan", { roots });
     } catch (err) {
       console.error("Scan failed:", err);
-    } finally {
-      setScanning(false);
+      setScanState({ phase: "idle", total: 0, completed: 0, currentRepo: null });
+      cleanupListeners();
     }
-  }, []);
+  }, [cleanupListeners]);
 
   // Load saved settings on mount and restore last workspace
   useEffect(() => {
@@ -283,12 +342,14 @@ function App() {
       <main className="app-main">
         {view === "table" ? (
           <>
-            <FilterBar
-              filter={filter}
-              onFilterChange={setFilter}
-              repoCount={repos.length}
-              filteredCount={filteredRepos.length}
-            />
+            {scanState.phase !== "idle" && (
+              <ScanProgressBar
+                phase={scanState.phase}
+                total={scanState.total}
+                completed={scanState.completed}
+                currentRepo={scanState.currentRepo}
+              />
+            )}
             {repos.length === 0 && !scanning ? (
               <div className="empty-state">
                 <div className="empty-state-icon">&#128269;</div>
@@ -301,20 +362,23 @@ function App() {
                   Add Folder
                 </button>
               </div>
-            ) : scanning ? (
-              <div className="scanning-state">
-                <div className="spinner"></div>
-                <p>Scanning for repositories...</p>
-              </div>
-            ) : (
-              <RepoTable
-                repos={sortedRepos}
-                sortField={sortField}
-                sortDir={sortDir}
-                onSort={handleSort}
-                onSelect={handleSelectRepo}
-              />
-            )}
+            ) : repos.length > 0 ? (
+              <>
+                <FilterBar
+                  filter={filter}
+                  onFilterChange={setFilter}
+                  repoCount={repos.length}
+                  filteredCount={filteredRepos.length}
+                />
+                <RepoTable
+                  repos={sortedRepos}
+                  sortField={sortField}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                  onSelect={handleSelectRepo}
+                />
+              </>
+            ) : null}
           </>
         ) : selectedRepo ? (
           <RepoDetailView detail={selectedRepo} onBack={handleBackToTable} />
