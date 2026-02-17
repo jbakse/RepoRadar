@@ -36,13 +36,13 @@ export function RepoTable({ repos, sortField, sortDir, onSort, onSelect }: Props
               Repository
               <SortIndicator field="name" currentField={sortField} currentDir={sortDir} />
             </th>
-            <th onClick={() => onSort("last_commit")}>
-              Last Commit
-              <SortIndicator field="last_commit" currentField={sortField} currentDir={sortDir} />
-            </th>
             <th onClick={() => onSort("last_edited")}>
               Last Edited
               <SortIndicator field="last_edited" currentField={sortField} currentDir={sortDir} />
+            </th>
+            <th onClick={() => onSort("last_commit")}>
+              Last Commit
+              <SortIndicator field="last_commit" currentField={sortField} currentDir={sortDir} />
             </th>
             <th onClick={() => onSort("changes")}>
               Changes
@@ -80,31 +80,28 @@ function RepoRow({ repo, onClick }: { repo: RepoSummary; onClick: () => void }) 
         <div className="repo-name">{repo.repo_name}</div>
         <div className="repo-path">{repo.path}</div>
       </td>
-      <td className="commit-cell">
-        {repo.last_commit ? (
-          <>
-            <div className="commit-subject">{repo.last_commit.subject}</div>
-            <div className="commit-meta">
-              <span className="commit-hash">{repo.last_commit.hash}</span>
-              <span className="commit-date">
-                {formatRelative(repo.last_commit.timestamp)}
-              </span>
-            </div>
-          </>
-        ) : (
-          <span className="no-data">No commits</span>
-        )}
-      </td>
       <td>
         {repo.last_file_edited ? (
           <>
-            <div className="edited-file">{repo.last_file_edited.path}</div>
             <div className="edited-date">
               {formatRelative(repo.last_file_edited.mtime)}
             </div>
+            <div className="edited-file">{repo.last_file_edited.path}</div>
           </>
         ) : (
           <span className="no-data">--</span>
+        )}
+      </td>
+      <td className="commit-cell">
+        {repo.last_commit ? (
+          <>
+            <div className="commit-date">
+              {formatRelative(repo.last_commit.timestamp)}
+            </div>
+            <div className="commit-subject">{repo.last_commit.subject}</div>
+          </>
+        ) : (
+          <span className="no-data">No commits</span>
         )}
       </td>
       <td>

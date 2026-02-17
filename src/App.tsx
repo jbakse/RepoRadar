@@ -42,6 +42,7 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
 
   const unlistenRef = useRef<UnlistenFn[]>([]);
+  const initialLoadDone = useRef(false);
 
   const cleanupListeners = useCallback(() => {
     for (const unlisten of unlistenRef.current) {
@@ -107,6 +108,8 @@ function App() {
 
   // Load saved settings on mount and restore last workspace
   useEffect(() => {
+    if (initialLoadDone.current) return;
+    initialLoadDone.current = true;
     async function loadSettings() {
       try {
         const settings = await invoke<AppSettings>("get_settings");
