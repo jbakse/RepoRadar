@@ -625,10 +625,10 @@
   color: var(--text-muted);
 }
 
-/* Overview Grid */
-.overview-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+/* Overview Section */
+.overview-section {
+  display: flex;
+  flex-direction: column;
   gap: 16px;
 }
 
@@ -709,50 +709,86 @@
   font-weight: 600;
 }
 
-/* File Lists */
-.file-list {
-  margin-bottom: 20px;
+/* Clickable path link */
+.path-link {
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: none;
+  font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+  word-break: break-all;
 }
 
-.file-list h3 {
-  font-size: 14px;
-  font-weight: 600;
-  margin-bottom: 8px;
+.path-link:hover {
+  text-decoration: underline;
 }
 
-.file-count {
-  font-weight: 400;
-  color: var(--text-muted);
-}
-
-.file-list ul {
-  list-style: none;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+/* Commit message in table */
+.commit-message {
+  white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 500px;
 }
 
-.file-list li {
-  padding: 6px 12px;
-  font-size: 13px;
-  border-bottom: 1px solid var(--border);
-}
-
-.file-list li:last-child {
-  border-bottom: none;
-}
-
-.file-list-staged h3 {
-  color: var(--green);
-}
-
-.file-list-unstaged h3 {
+/* Changed files status badges */
+.badge-status-modified {
+  background: rgba(251, 191, 36, 0.15);
   color: var(--yellow);
 }
 
-.file-list-untracked h3 {
+.badge-status-added {
+  background: rgba(74, 222, 128, 0.15);
+  color: var(--green);
+}
+
+.badge-status-deleted {
+  background: rgba(248, 113, 113, 0.15);
+  color: var(--red);
+}
+
+.badge-status-renamed {
+  background: rgba(96, 165, 250, 0.15);
+  color: var(--blue);
+}
+
+.badge-status-copied {
+  background: rgba(96, 165, 250, 0.15);
+  color: var(--blue);
+}
+
+.badge-status-untracked {
+  background: rgba(160, 160, 184, 0.1);
   color: var(--text-secondary);
+}
+
+.badge-status-typechanged {
+  background: rgba(251, 146, 60, 0.15);
+  color: var(--orange);
+}
+
+.badge-staged-indicator {
+  margin-left: 4px;
+  background: rgba(74, 222, 128, 0.1);
+  color: var(--green);
+  font-size: 10px;
+}
+
+/* File path cell */
+.file-path-cell {
+  word-break: break-all;
+  max-width: 400px;
+}
+
+/* Ignored files directory indicator */
+.child-count {
+  margin-left: 8px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-style: italic;
+}
+
+.text-muted {
+  color: var(--text-muted);
 }
 
 /* Risk rows */

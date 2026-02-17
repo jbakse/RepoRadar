@@ -74,9 +74,13 @@ pub struct IgnoredFileInfo {
     pub risk_level: RiskLevel,
     pub matched_rule: String,
     pub category: String,
+    #[serde(default)]
+    pub is_directory: bool,
+    #[serde(default)]
+    pub child_count: usize,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
 pub enum RiskLevel {
     High,
     Medium,
@@ -84,13 +88,31 @@ pub enum RiskLevel {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum FileStatus {
+    Modified,
+    Added,
+    Deleted,
+    Renamed,
+    Copied,
+    Untracked,
+    TypeChanged,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChangedFileEntry {
+    pub path: String,
+    pub file_name: String,
+    pub status: FileStatus,
+    pub staged: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RepoDetail {
     pub summary: RepoSummary,
     pub branches: Vec<BranchInfo>,
     pub ignored_files: Vec<IgnoredFileInfo>,
-    pub staged_files: Vec<String>,
-    pub unstaged_files: Vec<String>,
-    pub untracked_files: Vec<String>,
+    pub changed_files: Vec<ChangedFileEntry>,
+    pub recent_commits: Vec<CommitInfo>,
     pub warnings: Vec<String>,
 }
 

@@ -78,6 +78,31 @@ pub fn get_last_commit(repo_path: &Path) -> Option<CommitInfo> {
     }
 }
 
+pub fn get_recent_commits(repo_path: &Path, count: usize) -> Vec<CommitInfo> {
+    let count_arg = format!("-{}", count);
+    let output = match run_git(
+        repo_path,
+        &["log", &count_arg, "--format=%H%n%s%n%an%n%aI"],
+    ) {
+        Ok(o) => o,
+        Err(_) => return Vec::new(),
+    };
+
+    let lines: Vec<&str> = output.lines().collect();
+    let mut commits = Vec::new();
+    for chunk in lines.chunks(4) {
+        if chunk.len() >= 4 {
+            commits.push(CommitInfo {
+                hash: chunk[0][..7.min(chunk[0].len())].to_string(),
+                subject: chunk[1].to_string(),
+                author: chunk[2].to_string(),
+                timestamp: chunk[3].to_string(),
+            });
+        }
+    }
+    commits
+}
+
 pub fn get_created_date(repo_path: &Path) -> Option<String> {
     // Try earliest commit date first
     if let Ok(output) = run_git(
@@ -312,10 +337,8 @@ pub fn get_last_file_edited(repo_path: &Path, include_untracked: bool) -> Option
     })
 }
 
-pub fn get_file_lists(repo_path: &Path) -> (Vec<String>, Vec<String>, Vec<String>) {
-    let mut staged = Vec::new();
-    let mut unstaged = Vec::new();
-    let mut untracked = Vec::new();
+pub fn get_changed_files(repo_path: &Path) -> Vec<ChangedFileEntry> {
+    let mut files = Vec::new();
 
     if let Ok(output) = run_git(repo_path, &["status", "--porcelain=v2"]) {
         for line in output.lines() {
@@ -323,26 +346,70 @@ pub fn get_file_lists(repo_path: &Path) -> (Vec<String>, Vec<String>, Vec<String
                 let parts: Vec<&str> = line.split_whitespace().collect();
                 if parts.len() >= 9 {
                     let xy = parts[1];
-                    let file_path = parts[8..].join(" ");
+                    let is_rename = line.starts_with("2 ");
+                    let file_path = if is_rename {
+                        // For rename entries, the path may contain a tab separating new\told
+                        // We want the new path which is the space-delimited field at position 9
+                        parts[9..].join(" ").split('\t').next().unwrap_or("").to_string()
+                    } else {
+                        parts[8..].join(" ")
+                    };
+                    let file_name = Path::new(&file_path)
+                        .file_name()
+                        .map(|n| n.to_string_lossy().to_string())
+                        .unwrap_or_else(|| file_path.clone());
+
                     if xy.len() >= 2 {
                         let x = xy.chars().nth(0).unwrap_or('.');
                         let y = xy.chars().nth(1).unwrap_or('.');
                         if x != '.' {
-                            staged.push(file_path.clone());
+                            files.push(ChangedFileEntry {
+                                path: file_path.clone(),
+                                file_name: file_name.clone(),
+                                status: char_to_file_status(x, is_rename),
+                                staged: true,
+                            });
                         }
                         if y != '.' {
-                            unstaged.push(file_path);
+                            files.push(ChangedFileEntry {
+                                path: file_path.clone(),
+                                file_name: file_name.clone(),
+                                status: char_to_file_status(y, false),
+                                staged: false,
+                            });
                         }
                     }
                 }
             } else if line.starts_with("? ") {
                 let file_path = line[2..].to_string();
-                untracked.push(file_path);
+                let file_name = Path::new(&file_path)
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_else(|| file_path.clone());
+                files.push(ChangedFileEntry {
+                    path: file_path,
+                    file_name,
+                    status: FileStatus::Untracked,
+                    staged: false,
+                });
             }
         }
     }
 
-    (staged, unstaged, untracked)
+    files
+}
+
+fn char_to_file_status(c: char, is_rename_line: bool) -> FileStatus {
+    match c {
+        'M' => FileStatus::Modified,
+        'A' => FileStatus::Added,
+        'D' => FileStatus::Deleted,
+        'T' => FileStatus::TypeChanged,
+        'R' => FileStatus::Renamed,
+        'C' => FileStatus::Copied,
+        _ if is_rename_line => FileStatus::Renamed,
+        _ => FileStatus::Modified,
+    }
 }
 
 pub fn get_warnings(repo_path: &Path, sync: &SyncStatus, remotes: &[RemoteInfo]) -> Vec<String> {

@@ -63,15 +63,32 @@ export interface IgnoredFileInfo {
   risk_level: "High" | "Medium" | "Low";
   matched_rule: string;
   category: string;
+  is_directory: boolean;
+  child_count: number;
+}
+
+export type FileStatus =
+  | "Modified"
+  | "Added"
+  | "Deleted"
+  | "Renamed"
+  | "Copied"
+  | "Untracked"
+  | "TypeChanged";
+
+export interface ChangedFileEntry {
+  path: string;
+  file_name: string;
+  status: FileStatus;
+  staged: boolean;
 }
 
 export interface RepoDetail {
   summary: RepoSummary;
   branches: BranchInfo[];
   ignored_files: IgnoredFileInfo[];
-  staged_files: string[];
-  unstaged_files: string[];
-  untracked_files: string[];
+  changed_files: ChangedFileEntry[];
+  recent_commits: CommitInfo[];
   warnings: string[];
 }
 

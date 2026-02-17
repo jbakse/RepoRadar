@@ -103,21 +103,21 @@ pub fn get_repo_detail(state: State<'_, AppState>, repo_path: String) -> Result<
 
     let summary = git_ops::build_repo_summary(path, settings.include_untracked_mtime);
     let branches = git_ops::get_branches(path);
-    let ignored_files = risk::find_ignored_files(
+    let ignored_files = risk::find_all_ignored_files(
         path,
         &settings.always_flag_patterns,
         &settings.always_ignore_patterns,
     );
-    let (staged_files, unstaged_files, untracked_files) = git_ops::get_file_lists(path);
+    let changed_files = git_ops::get_changed_files(path);
+    let recent_commits = git_ops::get_recent_commits(path, 10);
     let warnings = git_ops::get_warnings(path, &summary.sync_status, &summary.remotes);
 
     Ok(RepoDetail {
         summary,
         branches,
         ignored_files,
-        staged_files,
-        unstaged_files,
-        untracked_files,
+        changed_files,
+        recent_commits,
         warnings,
     })
 }

@@ -1,6 +1,5 @@
-import { useState } from "react";
 import { RepoSummary, SortField, SortDirection } from "../types";
-import { formatRelative, formatDate } from "../utils";
+import { RelativeDate } from "./RelativeDate";
 
 interface Props {
   repos: RepoSummary[];
@@ -135,19 +134,6 @@ function RepoRow({ repo, onSelect }: { repo: RepoSummary; onSelect: (tab: string
         )}
       </td>
     </tr>
-  );
-}
-
-function RelativeDate({ iso, className }: { iso: string; className?: string }) {
-  const [hovered, setHovered] = useState(false);
-  return (
-    <div
-      className={className}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      {hovered ? formatDate(iso) : formatRelative(iso)}
-    </div>
   );
 }
 
