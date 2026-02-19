@@ -122,6 +122,11 @@ pub struct ScanDiscoveryComplete {
     pub total: usize,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RepoRemoved {
+    pub path: String,
+}
+
 /// Legacy workspace struct, kept only for migration from old settings.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LegacyWorkspace {

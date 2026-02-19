@@ -88,7 +88,7 @@ function RepoRow({ repo, onSelect, isCompact }: { repo: RepoSummary; onSelect: (
   const totalChanges =
     repo.uncommitted.staged + repo.uncommitted.unstaged + repo.uncommitted.untracked;
 
-  const syncLabel = getSyncLabel(repo, isCompact);
+  const syncLabels = getSyncLabels(repo, isCompact);
 
   return (
     <tr className="repo-row">
@@ -140,7 +140,11 @@ function RepoRow({ repo, onSelect, isCompact }: { repo: RepoSummary; onSelect: (
         )}
       </td>
       <td onClick={() => onSelect("branches")}>
-        <div className={`sync-status ${syncLabel.className}`}>{syncLabel.text}</div>
+        <div className="sync-labels">
+          {syncLabels.map((label, i) => (
+            <div key={i} className={`sync-status ${label.className}`}>{label.text}</div>
+          ))}
+        </div>
       </td>
       <td onClick={() => onSelect("ignored")}>
         {repo.has_high_risk_ignored ? (
@@ -153,47 +157,51 @@ function RepoRow({ repo, onSelect, isCompact }: { repo: RepoSummary; onSelect: (
   );
 }
 
-function getSyncLabel(repo: RepoSummary, isCompact: boolean): { text: string; className: string } {
+function getSyncLabels(repo: RepoSummary, isCompact: boolean): { text: string; className: string }[] {
   const sync = repo.sync_status;
 
+  // Blocking conditions — these states mean other sync info doesn't apply
   if (sync.detached) {
-    return { text: isCompact ? "\u26A0" : "Detached HEAD", className: "sync-warning" };
+    return [{ text: isCompact ? "\u26A0" : "Detached HEAD", className: "sync-warning" }];
   }
 
   if (!sync.branch) {
-    return { text: isCompact ? "\u26A0" : "No branch", className: "sync-warning" };
+    return [{ text: isCompact ? "\u26A0" : "No branch", className: "sync-warning" }];
   }
 
   if (repo.remotes.length === 0) {
-    return { text: isCompact ? "\u26A0" : "No remote", className: "sync-warning" };
+    return [{ text: isCompact ? "\u26A0" : "No remote", className: "sync-warning" }];
   }
 
   if (!sync.upstream) {
-    return { text: isCompact ? "\u26A0" : "No upstream", className: "sync-warning" };
+    return [{ text: isCompact ? "\u26A0" : "No upstream", className: "sync-warning" }];
   }
+
+  // Independent checks — collect all that apply
+  const labels: { text: string; className: string }[] = [];
 
   if (sync.ahead > 0 && sync.behind > 0) {
-    return {
+    labels.push({
       text: `${sync.ahead}\u2191 ${sync.behind}\u2193`,
       className: "sync-diverged",
-    };
-  }
-
-  if (sync.ahead > 0) {
-    return { text: isCompact ? `${sync.ahead}\u2191` : `${sync.ahead}\u2191 ahead`, className: "sync-ahead" };
-  }
-
-  if (sync.behind > 0) {
-    return { text: isCompact ? `${sync.behind}\u2193` : `${sync.behind}\u2193 behind`, className: "sync-behind" };
+    });
+  } else if (sync.ahead > 0) {
+    labels.push({ text: isCompact ? `${sync.ahead}\u2191` : `${sync.ahead}\u2191 ahead`, className: "sync-ahead" });
+  } else if (sync.behind > 0) {
+    labels.push({ text: isCompact ? `${sync.behind}\u2193` : `${sync.behind}\u2193 behind`, className: "sync-behind" });
   }
 
   if (sync.branches_without_upstream.length > 0) {
     const count = sync.branches_without_upstream.length;
-    return {
+    labels.push({
       text: isCompact ? "\u26A0" : `${count} unpushed branch${count > 1 ? "es" : ""}`,
       className: "sync-warning",
-    };
+    });
   }
 
-  return { text: isCompact ? "\u2713" : "In sync", className: "sync-ok" };
+  if (labels.length === 0) {
+    labels.push({ text: isCompact ? "\u2713" : "In sync", className: "sync-ok" });
+  }
+
+  return labels;
 }

@@ -21,6 +21,17 @@ import { ScanProgressBar } from "./components/ScanProgressBar";
 import { useCompact } from "./hooks/useCompact";
 import "./App.css";
 
+/** Upsert a repo summary into the list: update in-place if exists, append if new. */
+function upsertRepo(prev: RepoSummary[], updated: RepoSummary): RepoSummary[] {
+  const idx = prev.findIndex((r) => r.path === updated.path);
+  if (idx >= 0) {
+    const next = [...prev];
+    next[idx] = updated;
+    return next;
+  }
+  return [...prev, updated];
+}
+
 function App() {
   const isCompact = useCompact();
   const [repos, setRepos] = useState<RepoSummary[]>([]);
@@ -43,6 +54,8 @@ function App() {
 
   const unlistenRef = useRef<UnlistenFn[]>([]);
   const initialLoadDone = useRef(false);
+  // Track the last scanned roots to detect folder changes vs refreshes
+  const lastScannedRoots = useRef<string[]>([]);
 
   const cleanupListeners = useCallback(() => {
     for (const unlisten of unlistenRef.current) {
@@ -56,15 +69,54 @@ function App() {
     return () => cleanupListeners();
   }, [cleanupListeners]);
 
+  // Persistent listeners for background watcher/poller updates (lives for app lifetime)
+  useEffect(() => {
+    let unlistenUpdated: UnlistenFn | undefined;
+    let unlistenRemoved: UnlistenFn | undefined;
+
+    listen<RepoSummary>("scan:repo-updated", (event) => {
+      setRepos((prev) => upsertRepo(prev, event.payload));
+    }).then((u) => {
+      unlistenUpdated = u;
+    });
+
+    listen<{ path: string }>("scan:repo-removed", (event) => {
+      const removedPath = event.payload.path;
+      setRepos((prev) => prev.filter((r) => r.path !== removedPath));
+      // If the removed repo is currently selected, go back to table view
+      setSelectedRepo((prev) => {
+        if (prev && prev.summary.path === removedPath) {
+          setView("table");
+          return null;
+        }
+        return prev;
+      });
+    }).then((u) => {
+      unlistenRemoved = u;
+    });
+
+    return () => {
+      if (unlistenUpdated) unlistenUpdated();
+      if (unlistenRemoved) unlistenRemoved();
+    };
+  }, []);
+
   const scanRoots = useCallback(async (roots: string[]) => {
     if (roots.length === 0) return;
 
     // Clean up any existing listeners from a previous scan
     cleanupListeners();
 
-    setRepos([]);
-    setSelectedRepo(null);
-    setView("table");
+    // Only clear repos when the folder selection actually changes (different roots)
+    const rootsKey = [...roots].sort().join("\0");
+    const lastKey = [...lastScannedRoots.current].sort().join("\0");
+    if (rootsKey !== lastKey) {
+      setRepos([]);
+      setSelectedRepo(null);
+      setView("table");
+    }
+    lastScannedRoots.current = roots;
+
     setScanState({ phase: "discovering", total: 0, completed: 0, currentRepo: null });
 
     // Set up event listeners before starting the scan
@@ -84,7 +136,7 @@ function App() {
         }));
       }),
       listen<RepoSummary>("scan:repo-ready", (event) => {
-        setRepos((prev) => [...prev, event.payload]);
+        setRepos((prev) => upsertRepo(prev, event.payload));
       }),
       listen("scan:complete", () => {
         setScanState({ phase: "idle", total: 0, completed: 0, currentRepo: null });
